@@ -10,15 +10,18 @@ const {
   MYSQL_PORT
 } = process.env;
 
-// Create a new Sequelize instance
 const sequelize = new Sequelize(MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD, {
   host: MYSQL_HOST,
   port: MYSQL_PORT || 3306,
   dialect: 'mysql',
   dialectOptions: {
-    connectTimeout: 10000, // increase timeout to 10 seconds
+    connectTimeout: 20000, // you can increase timeout if necessary
+    ssl: {
+      require: true,
+      rejectUnauthorized: false,
+    },
   },
-  logging: false, // set to console.log to see SQL queries
+  logging: console.log,
 });
 
 // Test the connection
