@@ -15,7 +15,7 @@ const sequelize = new Sequelize(MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD, {
   port: MYSQL_PORT || 3306,
   dialect: 'mysql',
   dialectOptions: {
-    connectTimeout: 20000, // you can increase timeout if necessary
+    connectTimeout: 40000, // you can increase timeout if necessary
     ssl: {
       require: true,
       rejectUnauthorized: false,
