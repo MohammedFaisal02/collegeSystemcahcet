@@ -87,23 +87,27 @@ const FacultyDashboard = () => {
     fetchFacultyDetails();
   }, [navigate]);
 
-  // Fetch subjects for assessments & attendance using selected* filters
   useEffect(() => {
     const fetchSubjects = async () => {
       try {
         const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/subjects/list`, {
-          params: { batchYear: selectedAcademicYear, semester: selectedSemester, branch: selectedBranch },
+          params: { 
+            batchYear: selectedAcademicYear, 
+            semester: selectedSemester, 
+            branch: selectedBranch 
+          },
         });
         setSubjects(res.data);
       } catch (error) {
-        console.error('Error fetching subjects:', error.message);
+        console.error('Error fetching subjects:', error);
       }
     };
+  
     if (selectedAcademicYear && selectedSemester && selectedBranch) {
       fetchSubjects();
     }
   }, [selectedAcademicYear, selectedSemester, selectedBranch]);
-
+  
   // Fetch subjects for Attendance Percentage using ap* filters
   useEffect(() => {
     const fetchAPSubjects = async () => {
