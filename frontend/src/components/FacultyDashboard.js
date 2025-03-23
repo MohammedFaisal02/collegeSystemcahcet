@@ -73,7 +73,7 @@ const FacultyDashboard = () => {
           return;
         }
         const headers = { Authorization: `Bearer ${token}` };
-        const res = await axios.get(`http://localhost:5000/api/faculty/details?email=${email}`, { headers });
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/faculty/details?email=${email}`, { headers });
         setFacultyDetails(res.data);
       } catch (error) {
         console.error('Error fetching faculty details:', error.message);
@@ -91,7 +91,7 @@ const FacultyDashboard = () => {
   useEffect(() => {
     const fetchSubjects = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/subjects/list`, {
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/subjects/list`, {
           params: { batchYear: selectedAcademicYear, semester: selectedSemester, branch: selectedBranch },
         });
         setSubjects(res.data);
@@ -108,7 +108,7 @@ const FacultyDashboard = () => {
   useEffect(() => {
     const fetchAPSubjects = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/subjects/list`, {
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/subjects/list`, {
           params: { batchYear: apAcademicYear, semester: apSemester, branch: apBranch },
         });
         setApSubjects(res.data);
@@ -129,7 +129,7 @@ const FacultyDashboard = () => {
     }
     try {
       setLoading(true);
-      const res = await axios.get(`http://localhost:5000/api/faculty/students`, {
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/faculty/students`, {
         params: {
           branch: selectedBranch,
           section: selectedSection,
@@ -154,7 +154,7 @@ const FacultyDashboard = () => {
     }
     try {
       setLoading(true);
-      const res = await axios.get(`http://localhost:5000/api/faculty/students`, {
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/faculty/students`, {
         params: {
           branch: selectedBranch,
           section: selectedSection,
@@ -186,7 +186,7 @@ const FacultyDashboard = () => {
       marks: Math.min(parseFloat(student[selectedExamType] || 0), 100.0),
     }));
     try {
-      await axios.post(`http://localhost:5000/api/faculty/marks`, {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/faculty/marks`, {
         branch: selectedBranch,
         section: selectedSection,
         semester: selectedSemester,
@@ -215,7 +215,7 @@ const FacultyDashboard = () => {
       attendance_date: selectedDate
     }));
     try {
-      const response = await axios.post(`http://localhost:5000/api/faculty/attendance`, {
+      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/faculty/attendance`, {
         branch: selectedBranch,
         section: selectedSection,
         semester: selectedSemester,
@@ -251,7 +251,7 @@ const FacultyDashboard = () => {
     }
     try {
       setApLoading(true);
-      const response = await axios.get(`http://localhost:5000/api/faculty/attendance/percentage`, {
+      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/faculty/attendance/percentage`, {
         params: {
           branch: apBranch,
           academicYear: apAcademicYear,
@@ -309,19 +309,19 @@ const FacultyDashboard = () => {
     try {
       setStudentLoading(true);
       // Fetch student details from the students table
-      const detailsRes = await axios.get(`http://localhost:5000/api/students/details`, {
+      const detailsRes = await axios.get(`${process.env.REACT_APP_API_URL}/api/students/details`, {
         params: { rollNumber: searchRollNumber },
       });
       setStudentDetails(detailsRes.data);
 
       // Fetch academic results from the marks table (expected response is an array of subjects with marks)
-      const resultsRes = await axios.get(`http://localhost:5000/api/faculty/student/results`, {
+      const resultsRes = await axios.get(`${process.env.REACT_APP_API_URL}/api/faculty/student/results`, {
         params: { rollNumber: searchRollNumber },
       });
       setStudentResults(resultsRes.data);
 
       // Fetch attendance percentage records (expected response is an array with attendance details)
-      const attendanceRes = await axios.get(`http://localhost:5000/api/faculty/student/attendance`, {
+      const attendanceRes = await axios.get(`${process.env.REACT_APP_API_URL}/api/faculty/student/attendance`, {
         params: { rollNumber: searchRollNumber },
       });
       setStudentAttendance(attendanceRes.data);

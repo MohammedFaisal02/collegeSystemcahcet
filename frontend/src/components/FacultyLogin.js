@@ -23,7 +23,7 @@ const FacultyLogin = () => {
       localStorage.setItem('facultyEmail', email);
 
       // Send the idToken and email to your backend for verification and to fetch faculty details
-      const res = await axios.post(`http://localhost:5000/api/faculty/login`, { idToken, email });
+      const res = await axios.post(`${process.env.REACT_APP_API_URL}/api/faculty/login`, { idToken, email });
       navigate('/faculty-dashboard');
     } catch (error) {
       console.error("Login error:", error.message);

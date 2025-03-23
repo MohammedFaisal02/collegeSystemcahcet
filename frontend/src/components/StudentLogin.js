@@ -14,7 +14,7 @@ const StudentLogin = () => {
     setError("");
 
     try {
-      const response = await axios.post(`http://localhost:5000/api/students/login`, {
+      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/students/login`, {
         rollNumber: rollNo,
         dob: dob,
       });

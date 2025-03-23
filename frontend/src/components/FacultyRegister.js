@@ -26,7 +26,7 @@ const FacultyRegister = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post(`http://localhost:5000/api/faculty/register`, formData);
+      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/faculty/register`, formData);
       console.log('Registration successful:', response.data);
       alert('Faculty registered successfully');
       navigate('/');

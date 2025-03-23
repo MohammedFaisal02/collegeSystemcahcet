@@ -67,7 +67,7 @@ const StudentRegister = () => {
     try {
       // Post the registration data to the server.
       const response = await axios.post(
-        `http://localhost:5000/api/students/register`,
+        `${process.env.REACT_APP_API_URL}/api/students/register`,
         normalizedData
       );
       console.log("Registration successful:", response.data);

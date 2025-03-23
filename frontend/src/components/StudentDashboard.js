@@ -180,7 +180,7 @@ const StudentDashboard = () => {
       try {
         // Fetch student details
         const studentResponse = await axios.get(
-          `http://localhost:5000/api/students/${rollNo}`
+          `${process.env.REACT_APP_API_URL}/api/students/${rollNo}`
         );
         if (studentResponse.data) {
           const fetchedStudent = studentResponse.data;
@@ -188,7 +188,7 @@ const StudentDashboard = () => {
 
           // Fetch subjects based on branch and batchYear
           const subjectsResponse = await axios.get(
-            `http://localhost:5000/api/subjects`,
+            `${process.env.REACT_APP_API_URL}/api/subjects`,
             {
               params: {
                 branch: fetchedStudent.branch,
@@ -200,14 +200,14 @@ const StudentDashboard = () => {
 
           // Fetch marks for the student
           const marksResponse = await axios.get(
-            `http://localhost:5000/api/students/marks`,
+            `${process.env.REACT_APP_API_URL}/api/students/marks`,
             { params: { rollNumber: rollNo } }
           );
           setMarks(groupMarksBySemester(marksResponse.data));
 
           // Fetch attendance for the student
           const attendanceResponse = await axios.get(
-            `http://localhost:5000/api/students/attendance`,
+            `${process.env.REACT_APP_API_URL}/api/students/attendance`,
             { params: { rollNumber: rollNo } }
           );
           // The API returns an object keyed by semester
