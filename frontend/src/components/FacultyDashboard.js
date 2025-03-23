@@ -12,14 +12,14 @@ const FacultyDashboard = () => {
   const [attendanceStudents, setAttendanceStudents] = useState([]);
 
   // State variables for Attendance Percentage (new tab)
-  const [apBranch, setApBranch] = useState('CSE');
-  const [apAcademicYear, setApAcademicYear] = useState('2025');
-  const [apSemester, setApSemester] = useState('1');
+  const [apBranch, setApBranch] = useState('');
+  const [apAcademicYear, setApAcademicYear] = useState('');
+  const [apSemester, setApSemester] = useState('');
   const [apSection, setApSection] = useState('');
   const [apSubject, setApSubject] = useState('');
   const [apFromDate, setApFromDate] = useState(new Date().toISOString().split('T')[0]);
   const [apToDate, setApToDate] = useState(new Date().toISOString().split('T')[0]);
-  const [apEntry, setApEntry] = useState('Entry1');
+  const [apEntry, setApEntry] = useState('');
   const [apResults, setApResults] = useState([]);
   const [apLoading, setApLoading] = useState(false);
   // New state for subjects used in Attendance Percentage tab
@@ -32,9 +32,9 @@ const FacultyDashboard = () => {
   const sections = ['A', 'B'];
 
   // Filters for assessments & attendance (for other tabs)
-  const [selectedBranch, setSelectedBranch] = useState('CSE');
-  const [selectedAcademicYear, setSelectedAcademicYear] = useState('2025');
-  const [selectedSemester, setSelectedSemester] = useState('1');
+  const [selectedBranch, setSelectedBranch] = useState('');
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState('');
+  const [selectedSemester, setSelectedSemester] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
   const [selectedExamType, setSelectedExamType] = useState('');
