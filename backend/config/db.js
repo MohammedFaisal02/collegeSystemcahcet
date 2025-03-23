@@ -12,7 +12,7 @@ const {
 
 // Create a new Sequelize instance
 const sequelize = new Sequelize(MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD, {
-  host: MYSQL_HOST || 'localhost',
+  host: MYSQL_HOST,
   port: MYSQL_PORT || 3306,
   dialect: 'mysql',
   logging: false, // set to console.log to see SQL queries
