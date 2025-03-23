@@ -1,0 +1,41 @@
+# ---------------------------
+# General node and dependency folders
+# ---------------------------
+**/node_modules/
+
+# ---------------------------
+# Environment variables and configuration files
+# ---------------------------
+# Environment variable files (do not commit secrets)
+**/.env
+
+# ---------------------------
+# Build output folders
+# ---------------------------
+# For frontend build artifacts (if generated)
+frontend/build/
+backend/build/
+
+# ---------------------------
+# Log files
+# ---------------------------
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---------------------------
+# OS generated files
+# ---------------------------
+.DS_Store
+Thumbs.db
+
+# ---------------------------
+# Firebase and sensitive files
+# ---------------------------
+# Service account key (contains private credentials)
+backend/serviceAccountKey.json
+
+# If firebaseAdmin.js contains sensitive info (like private keys), add it too:
+backend/firebaseAdmin.js
