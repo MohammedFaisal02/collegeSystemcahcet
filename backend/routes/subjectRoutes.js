@@ -3,43 +3,7 @@ const router = express.Router();
 const sequelize = require("../config/db"); // Sequelize instance
 const { QueryTypes } = require("sequelize");
 
-// Get subject details by subject code, returning subject name
-router.get("/:subjectCode", async (req, res) => {
-  try {
-    // Normalize the subject code to uppercase and trim spaces
-    const subjectCode = req.params.subjectCode.trim().toUpperCase();
-    
-    const subject = await sequelize.query(
-      `SELECT subject_code, subject_name 
-       FROM subjects 
-       WHERE UPPER(subject_code) = ?`,
-      {
-        replacements: [subjectCode],
-        type: sequelize.QueryTypes.SELECT
-      }
-    );
 
-    if (!subject || subject.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        error: `Subject with code ${subjectCode} not found` 
-      });
-    }
-
-    // Return the subject name along with subject code
-    res.json({
-      success: true,
-      subject_code: subject[0].subject_code,
-      subject_name: subject[0].subject_name
-    });
-  } catch (error) {
-    console.error("Error fetching subject:", error);
-    res.status(500).json({ 
-      success: false, 
-      error: "Internal server error" 
-    });
-  }
-});
 
 router.get('/list', async (req, res) => {
   try {
@@ -65,6 +29,45 @@ router.get('/list', async (req, res) => {
   } catch (error) {
     console.error("Error fetching subjects:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+
+// Get subject details by subject code, returning subject name
+router.get("/:subjectCode", async (req, res) => {
+  try {
+    // Normalize the subject code to uppercase and trim spaces
+    const subjectCode = req.params.subjectCode.trim().toUpperCase();
+    
+    const subject = await sequelize.query(
+      `SELECT subject_code, subject_name 
+       FROM subjects 
+       WHERE subject_code = ?`,
+      {
+        replacements: [subjectCode],
+        type: sequelize.QueryTypes.SELECT
+      }
+    );
+
+    if (!subject || subject.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: `Subject with code ${subjectCode} not found` 
+      });
+    }
+
+    // Return the subject name along with subject code
+    res.json({
+      success: true,
+      subject_code: subject[0].subject_code,
+      subject_name: subject[0].subject_name
+    });
+  } catch (error) {
+    console.error("Error fetching subject:", error);
+    res.status(500).json({ 
+      success: false, 
+      error: "Internal server error" 
+    });
   }
 });
 
