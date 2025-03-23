@@ -208,7 +208,7 @@ router.get("/marks", async (req, res) => {
           COALESCE(m.cat2_marks, '') AS cat2,
           COALESCE(m.model_marks, '') AS model
        FROM subjects s
-       LEFT JOIN Marks m 
+       LEFT JOIN marks m 
          ON s.subject_code = m.subject_code 
          AND m.rollNumber = :rollNumber
        WHERE s.branch = :branch 
@@ -327,7 +327,7 @@ router.get("/attendance", async (req, res) => {
 
     res.json(attendanceData);
   } catch (error) {
-    console.error("Attendance fetch error:", error.message, error);
+    console.error("attendance fetch error:", error.message, error);
     res.status(500).json({ error: "Internal server error", details: error.message });
   }
 });

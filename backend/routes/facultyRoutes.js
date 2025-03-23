@@ -82,7 +82,7 @@ router.get("/details", async (req, res) => {
   }
 });
 
-// Save or Update Marks (Assessments)
+// Save or Update marks (Assessments)
 router.post("/marks", async (req, res) => {
   try {
     const { branch, section, semester, batchYear, subjectCode, examType, assessments } = req.body;
@@ -93,7 +93,7 @@ router.post("/marks", async (req, res) => {
       const { rollNumber, marks } = assessment;
       // Check if record exists
       const existingRecord = await sequelize.query(
-        "SELECT * FROM Marks WHERE rollNumber = ? AND subject_code = ?",
+        "SELECT * FROM marks WHERE rollNumber = ? AND subject_code = ?",
         {
           replacements: [rollNumber, subjectCode],
           type: QueryTypes.SELECT,
@@ -113,7 +113,7 @@ router.post("/marks", async (req, res) => {
           return res.status(400).json({ error: "Invalid exam type." });
         }
         await sequelize.query(
-          `UPDATE Marks SET ${updateField} = ? WHERE rollNumber = ? AND subject_code = ?`,
+          `UPDATE marks SET ${updateField} = ? WHERE rollNumber = ? AND subject_code = ?`,
           {
             replacements: [marks, rollNumber, subjectCode],
             type: QueryTypes.UPDATE,
@@ -122,7 +122,7 @@ router.post("/marks", async (req, res) => {
       } else {
         // Insert new record
         await sequelize.query(
-          `INSERT INTO Marks (rollNumber, subject_code, cat1_marks, cat2_marks, model_marks, batchYear, semester, section, branch)
+          `INSERT INTO marks (rollNumber, subject_code, cat1_marks, cat2_marks, model_marks, batchYear, semester, section, branch)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           {
             replacements: [
@@ -171,7 +171,7 @@ router.get("/students", async (req, res) => {
   }
 });
 
-// Faculty Route: Get Attendance Percentage (Faculty View)
+// Faculty Route: Get attendance Percentage (Faculty View)
 router.get("/attendance/percentage", async (req, res) => {
   const {
     branch,
@@ -430,7 +430,7 @@ router.get("/attendance/percentage", async (req, res) => {
   }
 });
 
-// Save Attendance (Insert/Update/Delete)
+// Save attendance (Insert/Update/Delete)
 router.post("/attendance", async (req, res) => {
   try {
     const { branch, section, batchYear, semester, subject_code, attendance_date, attendanceData } = req.body;
@@ -445,7 +445,7 @@ router.post("/attendance", async (req, res) => {
       }
       const { rollNumber, record } = recordData;
       const existingRecord = await sequelize.query(
-        "SELECT * FROM Attendance WHERE rollNumber = ? AND subject_code = ? AND attendance_date = ?",
+        "SELECT * FROM attendance WHERE rollNumber = ? AND subject_code = ? AND attendance_date = ?",
         {
           replacements: [rollNumber, subject_code, attendance_date],
           type: QueryTypes.SELECT,
@@ -454,7 +454,7 @@ router.post("/attendance", async (req, res) => {
       if (record === "P") {
         if (existingRecord.length > 0) {
           await sequelize.query(
-            "UPDATE Attendance SET record = 'P' WHERE rollNumber = ? AND subject_code = ? AND attendance_date = ?",
+            "UPDATE attendance SET record = 'P' WHERE rollNumber = ? AND subject_code = ? AND attendance_date = ?",
             {
               replacements: [rollNumber, subject_code, attendance_date],
               type: QueryTypes.UPDATE,
@@ -462,7 +462,7 @@ router.post("/attendance", async (req, res) => {
           );
         } else {
           await sequelize.query(
-            `INSERT INTO Attendance (rollNumber, batchYear, semester, section, subject_code, branch, attendance_date, record)
+            `INSERT INTO attendance (rollNumber, batchYear, semester, section, subject_code, branch, attendance_date, record)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             {
               replacements: [rollNumber, batchYear, semester, section, subject_code, branch, attendance_date, "P"],
@@ -472,14 +472,14 @@ router.post("/attendance", async (req, res) => {
         }
       } else if (record === "A") {
         await sequelize.query(
-          "DELETE FROM Attendance WHERE rollNumber = ? AND subject_code = ? AND attendance_date = ?",
+          "DELETE FROM attendance WHERE rollNumber = ? AND subject_code = ? AND attendance_date = ?",
           {
             replacements: [rollNumber, subject_code, attendance_date],
             type: QueryTypes.DELETE,
           }
         );
         await sequelize.query(
-          `INSERT INTO Attendance (rollNumber, batchYear, semester, section, subject_code, branch, attendance_date, record)
+          `INSERT INTO attendance (rollNumber, batchYear, semester, section, subject_code, branch, attendance_date, record)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           {
             replacements: [rollNumber, batchYear, semester, section, subject_code, branch, attendance_date, "A"],
@@ -488,7 +488,7 @@ router.post("/attendance", async (req, res) => {
         );
       }
     }
-    res.json({ message: "Attendance saved successfully!" });
+    res.json({ message: "attendance saved successfully!" });
   } catch (error) {
     console.error("Error saving attendance:", error);
     res.status(500).json({ error: "Internal server error" });
