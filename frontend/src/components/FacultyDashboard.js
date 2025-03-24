@@ -697,8 +697,8 @@ const FacultyDashboard = () => {
                           </td>
                         );
                       })}
-                      <td>{totalPresents}</td>
                       <td>{totalDays}</td>
+                      <td>{totalPresents}</td>
                       <td>{overallPerc.toFixed(2)}%</td>
                     </tr>
                   );
