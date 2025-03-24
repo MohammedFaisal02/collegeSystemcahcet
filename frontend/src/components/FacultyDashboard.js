@@ -19,7 +19,7 @@ const FacultyDashboard = () => {
   const [apSubject, setApSubject] = useState('');
   const [apFromDate, setApFromDate] = useState(new Date().toISOString().split('T')[0]);
   const [apToDate, setApToDate] = useState(new Date().toISOString().split('T')[0]);
-  const [apEntry, setApEntry] = useState('');
+  const [apEntry, setApEntry] = useState('Entry1');
   const [apResults, setApResults] = useState([]);
   const [apLoading, setApLoading] = useState(false);
   // New state for subjects used in Attendance Percentage tab
@@ -546,96 +546,96 @@ const FacultyDashboard = () => {
                   </tbody>
                 </table>
                 <br />
-                <button cclassName="action-button" onClick={handleSaveAttendance}>
+                <button className="action-button" onClick={handleSaveAttendance}>
                   Save Attendance
                 </button>
               </div>
             )}
           </div>
         );
-      case 'attendancePercentage':
-        return (
-          <div className="tab-content attendance-percentage-tab">
-            <h2>Attendance Percentage</h2>
-            <div className="filters-container">
-              <div className="filter-group">
-                <label>Branch:</label>
-                <select value={apBranch} onChange={(e) => setApBranch(e.target.value)}>
-                  <option value="">-- Select Branch --</option>
-                  {branches.map(b => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="filter-group">
-                <label>Academic Year:</label>
-                <select value={apAcademicYear} onChange={(e) => setApAcademicYear(e.target.value)}>
-                  <option value="">-- Select Year --</option>
-                  {academicYears.map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="filter-group">
-                <label>Semester:</label>
-                <select value={apSemester} onChange={(e) => setApSemester(e.target.value)}>
-                  <option value="">-- Select Semester --</option>
-                  {semesters.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="filter-group">
-                <label>Section:</label>
-                <select value={apSection} onChange={(e) => setApSection(e.target.value)}>
-                  <option value="">-- Select Section --</option>
-                  {sections.map(sec => (
-                    <option key={sec} value={sec}>{sec}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="filter-group">
-                <label>Subject:</label>
-                <select value={apSubject} onChange={(e) => setApSubject(e.target.value)}>
-                  <option value="">-- Select Subject --</option>
-                  {apSubjects.map(sub => (
-                    <option key={sub.subject_code} value={sub.subject_code}>
-                      {sub.subject_name} ({sub.subject_code})
-                    </option>
-                  ))}
-                  <option value="ALL">All Subjects</option>
-                </select>
-              </div>
-              <div className="filter-group">
-                <label>From Date:</label>
-                <input
-                  type="date"
-                  value={apFromDate}
-                  onChange={(e) => setApFromDate(e.target.value)}
-                  className="date-input"
-                />
-              </div>
-              <div className="filter-group">
-                <label>To Date:</label>
-                <input
-                  type="date"
-                  value={apToDate}
-                  onChange={(e) => setApToDate(e.target.value)}
-                  className="date-input"
-                />
-              </div>
-              <div className="filter-group">
-                <label>Entry:</label>
-                <select value={apEntry} onChange={(e) => setApEntry(e.target.value)}>
-                  <option value="Entry1">Entry 1</option>
-                  <option value="Entry2">Entry 2</option>
-                </select>
-              </div>
-            </div>
-            <button className="action-button" onClick={handleCalculateAttendancePercentage}>
-              Calculate Percentage
-            </button>
-            {apLoading && <p>Calculating attendance percentage...</p>}
+        case 'attendancePercentage':
+  return (
+    <div className="tab-content attendance-percentage-tab">
+      <h2>Attendance Percentage</h2>
+      <div className="filters-container">
+        <div className="filter-group">
+          <label>Branch:</label>
+          <select value={apBranch} onChange={(e) => setApBranch(e.target.value)}>
+            <option value="">-- Select Branch --</option>
+            {branches.map(b => (
+              <option key={b} value={b}>{b}</option>
+            ))}
+          </select>
+        </div>
+        <div className="filter-group">
+          <label>Academic Year:</label>
+          <select value={apAcademicYear} onChange={(e) => setApAcademicYear(e.target.value)}>
+            <option value="">-- Select Year --</option>
+            {academicYears.map(year => (
+              <option key={year} value={year}>{year}</option>
+            ))}
+          </select>
+        </div>
+        <div className="filter-group">
+          <label>Semester:</label>
+          <select value={apSemester} onChange={(e) => setApSemester(e.target.value)}>
+            <option value="">-- Select Semester --</option>
+            {semesters.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+        <div className="filter-group">
+          <label>Section:</label>
+          <select value={apSection} onChange={(e) => setApSection(e.target.value)}>
+            <option value="">-- Select Section --</option>
+            {sections.map(sec => (
+              <option key={sec} value={sec}>{sec}</option>
+            ))}
+          </select>
+        </div>
+        <div className="filter-group">
+          <label>Subject:</label>
+          <select value={apSubject} onChange={(e) => setApSubject(e.target.value)}>
+            <option value="">-- Select Subject --</option>
+            {apSubjects.map(sub => (
+              <option key={sub.subject_code} value={sub.subject_code}>
+                {sub.subject_name} ({sub.subject_code})
+              </option>
+            ))}
+            <option value="ALL">All Subjects</option>
+          </select>
+        </div>
+        <div className="filter-group">
+          <label>From Date:</label>
+          <input
+            type="date"
+            value={apFromDate}
+            onChange={(e) => setApFromDate(e.target.value)}
+            className="date-input"
+          />
+        </div>
+        <div className="filter-group">
+          <label>To Date:</label>
+          <input
+            type="date"
+            value={apToDate}
+            onChange={(e) => setApToDate(e.target.value)}
+            className="date-input"
+          />
+        </div>
+        <div className="filter-group">
+          <label>Entry:</label>
+          <select value={apEntry} onChange={(e) => setApEntry(e.target.value)}>
+            <option value="Entry1">Entry 1</option>
+            <option value="Entry2">Entry 2</option>
+          </select>
+        </div>
+      </div>
+      <button className="action-button" onClick={handleCalculateAttendancePercentage}>
+        Calculate Percentage
+      </button>
+      {apLoading && <p>Calculating attendance percentage...</p>}
       {apResults.length > 0 && (
         <div className="table-container" style={{ overflowX: "auto" }}>
           {apSubject === "ALL" ? (
@@ -656,24 +656,37 @@ const FacultyDashboard = () => {
                 {apResults.map((row) => {
                   const roll = row.roll_number || "N/A";
                   const name = row.student_name || "N/A";
-                  const totalPresents = Number(row.total_presents) || 0;
-                  const totalDays = Number(row.total_days) || 0;
-                  // If overall_percentage is provided, use it; otherwise compute it.
-                  const overallPerc =
-                    totalDays > 0
-                      ? row.overall_percentage != null
-                        ? parseFloat(row.overall_percentage)
-                        : (totalPresents / totalDays) * 100
-                      : 0;
+                  // Calculate totals from the subjects array directly
+                  const totalPresents = row.subjects
+                    ? row.subjects.reduce(
+                        (acc, subj) =>
+                          acc +
+                          (Number(subj.present_count) ||
+                            Number(subj.presentCount) ||
+                            0),
+                        0
+                      )
+                    : 0;
+                  const totalDays = row.subjects
+                    ? row.subjects.reduce(
+                        (acc, subj) =>
+                          acc +
+                          (Number(subj.total_days) ||
+                            Number(subj.totalDays) ||
+                            0),
+                        0
+                      )
+                    : 0;
+                  const overallPerc = totalDays > 0 ? (totalPresents / totalDays) * 100 : 0;
                   return (
                     <tr key={roll}>
                       <td>{roll}</td>
                       <td>{name}</td>
                       {apSubjects.map((sub) => {
-                        // Find subject data (ensure matching subject_code, case sensitive)
                         const subjectData =
                           row.subjects?.find(
-                            (s) => s.subject_code.toUpperCase() === sub.subject_code.toUpperCase()
+                            (s) =>
+                              s.subject_code.toUpperCase() === sub.subject_code.toUpperCase()
                           ) || {};
                         const pres = Number(subjectData.present_count || subjectData.presentCount || 0);
                         const days = Number(subjectData.total_days || subjectData.totalDays || 0);
@@ -699,8 +712,9 @@ const FacultyDashboard = () => {
                 <tr>
                   <th>Roll No.</th>
                   <th>Name</th>
-                  <th>Presents</th>
-                  <th>Total Days</th>
+                  <th>Total Periods</th>
+                  <th>Present</th>
+                  <th>Absent</th>
                   <th>Percentage</th>
                 </tr>
               </thead>
@@ -708,27 +722,29 @@ const FacultyDashboard = () => {
                 {apResults.map((row) => {
                   const roll = row.roll_number || "N/A";
                   const name = row.student_name || "N/A";
-                  const pres = Number(row.present_count) || 0;
-                  const days = Number(row.total_days) || 0;
-                  const perc = days > 0 ? parseFloat(row.percentage) : 0;
+                  const totalPeriods = Number(row.total_days) || 0;
+                  const present = Number(row.present_count) || 0;
+                  const absent = totalPeriods - present;
+                  const percentage = totalPeriods > 0 ? parseFloat(row.percentage) : 0;
                   return (
                     <tr key={roll}>
                       <td>{roll}</td>
                       <td>{name}</td>
-                      <td>{pres}</td>
-                      <td>{days}</td>
-                      <td>{perc.toFixed(2)}%</td>
+                      <td>{totalPeriods}</td>
+                      <td>{present}</td>
+                      <td>{absent}</td>
+                      <td>{percentage.toFixed(2)}%</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           )}
-        
-              </div>
-            )}
-          </div>
-        );
+        </div>
+      )}
+    </div>
+  );
+
       case 'students':
         // Inside your student tab render function:
         const resultsBySemester = groupResultsBySemester(studentResults);
