@@ -647,8 +647,8 @@ const FacultyDashboard = () => {
                   {apSubjects.map((sub) => (
                     <th key={sub.subject_code}>{sub.subject_name}</th>
                   ))}
+                  <th>Total Periods</th>
                   <th>Total Presents</th>
-                  <th>Total Days</th>
                   <th>Overall %</th>
                 </tr>
               </thead>
