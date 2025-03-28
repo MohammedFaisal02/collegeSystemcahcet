@@ -33,3 +33,4 @@ Thumbs.db
 # Firebase and sensitive files
 # ---------------------------
 backend/serviceAccountKey.json
+backend/server.zip

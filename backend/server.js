@@ -19,8 +19,8 @@ const limiter = rateLimit({
 
 // CORS configuration with dynamic origin handling
 const corsOptions = {
-  origin: (origin, callback) => {
-    const allowedOrigins = ['https://college-systemcahcet.vercel.app', 'https://main.d2dy90hakt49pu.amplifyapp.com'];
+  origin: (origin, callback) => {amplifyapp
+    const allowedOrigins = ['https://college-systemcahcet.vercel.app', 'https://main.d1dqbntcyikp3v.amplifyapp.com'];
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
