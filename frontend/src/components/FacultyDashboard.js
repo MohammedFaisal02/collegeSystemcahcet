@@ -1,17 +1,19 @@
+// src/components/FacultyDashboard.js
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { FiMenu, FiX } from 'react-icons/fi';
 import '../styles/FacultyDashboard.css';
+import { jwtDecode } from 'jwt-decode';  // Updated import to use named export
 
 const FacultyDashboard = () => {
   const [navActive, setNavActive] = useState(false);
   const [selectedTab, setSelectedTab] = useState('details');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [attendanceStudents, setAttendanceStudents] = useState([]);
 
-  // State variables for Attendance Percentage (new tab)
+  // States for Attendance Percentage
   const [apBranch, setApBranch] = useState('');
   const [apAcademicYear, setApAcademicYear] = useState('');
   const [apSemester, setApSemester] = useState('');
@@ -22,7 +24,6 @@ const FacultyDashboard = () => {
   const [apEntry, setApEntry] = useState('Entry1');
   const [apResults, setApResults] = useState([]);
   const [apLoading, setApLoading] = useState(false);
-  // New state for subjects used in Attendance Percentage tab
   const [apSubjects, setApSubjects] = useState([]);
 
   // Dropdown options
@@ -31,7 +32,7 @@ const FacultyDashboard = () => {
   const semesters = ['1', '2', '3', '4', '5', '6', '7', '8'];
   const sections = ['A', 'B'];
 
-  // Filters for assessments & attendance (for other tabs)
+  // Filters for assessments & attendance
   const [selectedBranch, setSelectedBranch] = useState('');
   const [selectedAcademicYear, setSelectedAcademicYear] = useState('');
   const [selectedSemester, setSelectedSemester] = useState('');
@@ -46,49 +47,80 @@ const FacultyDashboard = () => {
   const [subjects, setSubjects] = useState([]);
   const [assessmentStudents, setAssessmentStudents] = useState([]);
 
-
-  // New state variables for the student tab
+  // States for the student tab
   const [searchRollNumber, setSearchRollNumber] = useState('');
   const [studentDetails, setStudentDetails] = useState(null);
   const [studentResults, setStudentResults] = useState([]);
   const [studentAttendance, setStudentAttendance] = useState([]);
   const [studentLoading, setStudentLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const navigate = useNavigate();
 
   const toggleNav = () => setNavActive(prev => !prev);
 
+  // Updated logout: remove token and faculty code from localStorage
   const handleLogout = () => {
     localStorage.removeItem('facultyToken');
-    localStorage.removeItem('facultyEmail');
-    window.location.href = '/'; // Redirect to home page after logout
+    localStorage.removeItem('facultyCode');
+    window.location.href = '/';
   };
 
-  // Fetch faculty details
-  useEffect(() => {
-    const fetchFacultyDetails = async () => {
-      try {
-        const token = localStorage.getItem('facultyToken');
-        const email = localStorage.getItem('facultyEmail');
-        if (!token || !email) {
-          navigate('/faculty-login');
-          return;
-        }
-        const headers = { Authorization: `Bearer ${token}` };
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/faculty/details?email=${email}`, { headers });
-        setFacultyDetails(res.data);
-      } catch (error) {
-        console.error('Error fetching faculty details:', error.message);
-        if (error.response?.status === 401) {
-          localStorage.removeItem('facultyToken');
-          localStorage.removeItem('facultyEmail');
-          navigate('/');
-        }
-      }
-    };
-    fetchFacultyDetails();
-  }, [navigate]);
+  // Verify token and fetch faculty details
+// Inside FacultyDashboard.js useEffect for session verification
+useEffect(() => {
+  const verifyFacultySession = async () => {
+    try {
+      const token = localStorage.getItem('facultyToken');
+      const facultyCode = localStorage.getItem('facultyCode');
 
+      console.log('Stored facultyCode:', facultyCode);
+      console.log('Token:', token);
+
+      if (!token || !facultyCode) {
+        console.log('Missing token or faculty code, redirecting...');
+        navigate('/faculty-login');
+        return;
+      }
+
+      const decoded = jwtDecode(token);
+      console.log('Decoded token:', decoded);
+
+      // Convert decoded faculty_code to string for comparison
+      if (decoded.exp * 1000 < Date.now() || decoded.faculty_code.toString() !== facultyCode) {
+        console.log('Token expired or faculty code mismatch, redirecting...');
+        localStorage.clear();
+        navigate('/faculty-login');
+        return;
+      }
+
+      // Fetch faculty details from backend
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/faculty/details`, {
+        params: { faculty_code: facultyCode },
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (res.data && res.data.faculty_code) {
+        setFacultyDetails(res.data);
+      } else {
+        throw new Error('Invalid response structure');
+      }
+    } catch (error) {
+      console.error('Error during verification:', error);
+      setError('Failed to load faculty details');
+      if (error.response?.status === 401) {
+        localStorage.clear();
+        navigate('/faculty-login');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  verifyFacultySession();
+}, [navigate]);
+
+  // Fetch subjects based on filters for assessments & attendance
   useEffect(() => {
     const fetchSubjects = async () => {
       try {
@@ -110,7 +142,7 @@ const FacultyDashboard = () => {
     }
   }, [selectedAcademicYear, selectedSemester, selectedBranch]);
 
-  // Fetch subjects for Attendance Percentage using ap* filters
+  // Fetch subjects for Attendance Percentage tab
   useEffect(() => {
     const fetchAPSubjects = async () => {
       try {
@@ -180,7 +212,7 @@ const FacultyDashboard = () => {
       setLoading(false);
     }
   };
-  
+
   // Save assessments
   const handleSaveAssessments = async () => {
     if (!selectedBranch || !selectedSection || !selectedSubject || assessmentStudents.length === 0 || !selectedExamType) {
@@ -208,23 +240,22 @@ const FacultyDashboard = () => {
       alert('Error saving assessments.');
     }
   };
-  
-  // Save attendance (now includes day order along with period)
+
+  // Save attendance
   const handleSaveAttendance = async () => {
     if (!selectedBranch || !selectedAcademicYear || !selectedSemester || !selectedSection || !selectedSubject || attendanceStudents.length === 0 || !selectedPeriod || !selectedDayOrder) {
       alert('Please ensure all filters (including period and day order) are selected and students are fetched.');
       return;
     }
-    // Include both period and day order in the payload for each student
     const attendanceData = attendanceStudents.map(student => ({
       rollNumber: student.rollNumber,
       record: student.record,
       attendance_date: selectedDate,
-      period: selectedPeriod,      // Added period
-      day_order: selectedDayOrder  // Added day order
+      period: selectedPeriod,
+      day_order: selectedDayOrder
     }));
     try {
-      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/faculty/attendance`, {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/faculty/attendance`, {
         branch: selectedBranch,
         section: selectedSection,
         semester: selectedSemester,
@@ -240,19 +271,10 @@ const FacultyDashboard = () => {
       alert(`Error saving attendance: ${error.response?.data?.error || 'Unknown error'}`);
     }
   };
-  
-  // Calculate Attendance Percentage (day order and period are not sent here)
+
+  // Calculate Attendance Percentage
   const handleCalculateAttendancePercentage = async () => {
-    if (
-      !apBranch ||
-      !apAcademicYear ||
-      !apSemester ||
-      !apSection ||
-      !apSubject ||
-      !apFromDate ||
-      !apToDate ||
-      !apEntry
-    ) {
+    if (!apBranch || !apAcademicYear || !apSemester || !apSection || !apSubject || !apFromDate || !apToDate || !apEntry) {
       alert('Please select all filters for attendance percentage.');
       return;
     }
@@ -278,8 +300,8 @@ const FacultyDashboard = () => {
       setApLoading(false);
     }
   };
-  
-  // New helper functions to group results and attendance by semester
+
+  // Grouping helper functions for student tab
   const groupResultsBySemester = (results) => {
     const groups = {};
     results.forEach(result => {
@@ -308,7 +330,7 @@ const FacultyDashboard = () => {
       .map(sem => ({ semester: sem, attendance: groups[sem] }));
   };
 
-  // New function to handle student search
+  // Search student by roll number
   const handleSearchStudent = async () => {
     if (!searchRollNumber.trim()) {
       alert('Please enter a roll number.');
@@ -316,19 +338,16 @@ const FacultyDashboard = () => {
     }
     try {
       setStudentLoading(true);
-      // Fetch student details from the students table
       const detailsRes = await axios.get(`${process.env.REACT_APP_API_URL}/api/students/details`, {
         params: { rollNumber: searchRollNumber },
       });
       setStudentDetails(detailsRes.data);
 
-      // Fetch academic results from the marks table (expected response is an array of subjects with marks)
       const resultsRes = await axios.get(`${process.env.REACT_APP_API_URL}/api/faculty/student/results`, {
         params: { rollNumber: searchRollNumber },
       });
       setStudentResults(resultsRes.data);
 
-      // Fetch attendance percentage records (expected response is an array with attendance details)
       const attendanceRes = await axios.get(`${process.env.REACT_APP_API_URL}/api/faculty/student/attendance`, {
         params: { rollNumber: searchRollNumber },
       });
@@ -341,9 +360,7 @@ const FacultyDashboard = () => {
     }
   };
 
-
-
-  // Render tab content
+  // Render tab content based on selection
   const renderTabContent = () => {
     if (loading) return <p>Loading data...</p>;
     switch (selectedTab) {
@@ -353,8 +370,9 @@ const FacultyDashboard = () => {
             <h2>Faculty Details</h2>
             {facultyDetails ? (
               <>
-                <p><strong>Name:</strong> {facultyDetails.name}</p>
-                <p><strong>Email:</strong> {facultyDetails.email}</p>
+                <p><strong>Faculty Code:</strong> {facultyDetails.faculty_code}</p>
+                <p><strong>Name:</strong> {facultyDetails.faculty_name}</p>
+                <p><strong>Designation:</strong> {facultyDetails.designation}</p>
                 <p><strong>Branch:</strong> {facultyDetails.branch || 'N/A'}</p>
               </>
             ) : (
@@ -464,7 +482,6 @@ const FacultyDashboard = () => {
       case 'attendance':
         return (
           <div className="tab-content attendance-tab">
-
             <h2>Attendance</h2>
             <div className="filters-container">
               <div className="filter-group">
@@ -653,8 +670,6 @@ const FacultyDashboard = () => {
                   <option value="Entry2">Entry 2</option>
                 </select>
               </div>
-              
-              
             </div>
             <button className="action-button" onClick={handleCalculateAttendancePercentage}>
               Calculate Percentage
@@ -761,7 +776,6 @@ const FacultyDashboard = () => {
                 )}
               </div>
             )}
-
           </div>
         );
 
@@ -779,7 +793,6 @@ const FacultyDashboard = () => {
 
         return (
           <div className="tab-content student-tab">
-
             <h2>Student Academic Performance</h2>
             <div className="student-search">
               <input
@@ -1027,7 +1040,6 @@ const FacultyDashboard = () => {
           </button>
         </div>
       </div>
-
 
       <div className="main-content">
         {renderTabContent()}

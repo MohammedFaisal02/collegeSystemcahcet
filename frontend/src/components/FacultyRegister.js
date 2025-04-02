@@ -3,11 +3,12 @@ import React, { useState } from 'react';
 import '../styles/Register.css';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+
 const FacultyRegister = () => {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
+    faculty_code: '',
+    faculty_name: '',
+    designation: '',
     branch: '',
   });
 
@@ -26,6 +27,7 @@ const FacultyRegister = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Backend will compute the password using faculty_name and faculty_code
       const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/faculty/register`, formData);
       console.log('Registration successful:', response.data);
       alert('Faculty registered successfully');
@@ -42,28 +44,28 @@ const FacultyRegister = () => {
         <h2>Faculty Registration</h2>
         <form onSubmit={handleSubmit}>
           <input
+            type="number"
+            placeholder="Faculty Code"
+            name="faculty_code"
+            value={formData.faculty_code}
+            onChange={handleChange}
+            className="register-input"
+            required
+          />
+          <input
             type="text"
             placeholder="Faculty Name"
-            name="name"
-            value={formData.name}
+            name="faculty_name"
+            value={formData.faculty_name}
             onChange={handleChange}
             className="register-input"
             required
           />
           <input
-            type="email"
-            placeholder="Email"
-            name="email"
-            value={formData.email}
-            onChange={handleChange}
-            className="register-input"
-            required
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            name="password"
-            value={formData.password}
+            type="text"
+            placeholder="Designation"
+            name="designation"
+            value={formData.designation}
             onChange={handleChange}
             className="register-input"
             required

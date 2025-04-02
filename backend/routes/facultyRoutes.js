@@ -3,82 +3,154 @@ const express = require("express");
 const router = express.Router();
 const sequelize = require("../config/db");
 const { QueryTypes } = require("sequelize");
-const admin = require("../firebaseAdmin");
+const jwt = require("jsonwebtoken");
+require('dotenv').config();
 
-// Faculty Login via Firebase token
+const secretKey = process.env.JWT_SECRET;
+
+// Middleware to verify JWT
+const verifyToken = (req, res, next) => {
+  const bearerHeader = req.headers['authorization'];
+  if (typeof bearerHeader !== 'undefined') {
+    const token = bearerHeader.split(' ')[1];
+    jwt.verify(token, secretKey, (err, decoded) => {
+      if (err) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+      req.decoded = decoded;
+      next();
+    });
+  } else {
+    res.status(403).json({ message: "No token provided" });
+  }
+};
+
+// Faculty Login
+// Faculty Login
 router.post("/login", async (req, res) => {
-  const { idToken } = req.body; // Client sends the Firebase ID token
-  if (!idToken) {
-    return res.status(400).json({ message: "ID Token is required" });
+  const { faculty_code, password } = req.body;
+
+  if (!faculty_code || !password) {
+    return res.status(400).json({ message: "Faculty code and password are required" });
   }
+
   try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    const email = decodedToken.email;
+    // Get faculty from database
     const faculty = await sequelize.query(
-      "SELECT * FROM faculties WHERE email = :email",
+      "SELECT * FROM faculties WHERE faculty_code = :faculty_code",
       {
-        replacements: { email },
+        replacements: { faculty_code },
         type: QueryTypes.SELECT,
       }
     );
-    if (!faculty || faculty.length === 0) {
-      return res.status(401).json({ message: "Faculty not found" });
+
+    if (!faculty.length) {
+      return res.status(404).json({ message: "Faculty not found" });
     }
-    res.json({
-      facultyDetails: {
-        id: faculty[0].id,
-        name: faculty[0].name,
-        email: faculty[0].email,
-        branch: faculty[0].branch,
+
+    // Compare passwords
+    if (faculty[0].password !== password) {
+      return res.status(401).json({ message: "Invalid password" });
+    }
+
+    // Generate JWT with faculty_code as a string
+    const token = jwt.sign(
+      {
+        faculty_code: faculty[0].faculty_code.toString(),  // convert to string
+        designation: faculty[0].designation,
+        branch: faculty[0].branch
       },
+      secretKey,
+      { expiresIn: "1h" }
+    );
+
+    res.json({
+      faculty: {
+        code: faculty[0].faculty_code,
+        name: faculty[0].faculty_name,
+        designation: faculty[0].designation,
+        branch: faculty[0].branch
+      },
+      token
     });
+
   } catch (error) {
-    console.error("Firebase token verification error:", error);
-    res.status(401).json({ message: "Unauthorized" });
+    console.error("Login error:", error);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
-// Faculty Register
+
+// Faculty Registration
 router.post("/register", async (req, res) => {
-  const { name, email, password, branch } = req.body;
-  try {
-    const query = `
-      INSERT INTO faculties (name, email, password, branch)
-      VALUES (?, ?, ?, ?)
-    `;
-    const values = [name, email, password, branch];
-    await sequelize.query(query, {
-      replacements: values,
-      type: QueryTypes.INSERT,
-    });
-    res.status(201).json({ message: "Faculty registered successfully" });
-  } catch (error) {
-    console.error("Error registering faculty:", error);
-    res.status(500).json({ error: "Database error" });
+  const { faculty_code, faculty_name, designation, branch } = req.body;
+  if (!faculty_code || !faculty_name || !designation || !branch) {
+    return res.status(400).json({ message: "All fields are required" });
   }
-});
-
-// Get Faculty Details
-router.get("/details", async (req, res) => {
   try {
-    const { email } = req.query;
-    if (!email) {
-      return res.status(400).json({ error: "Email is required." });
-    }
-    const faculties = await sequelize.query(
-      "SELECT * FROM faculties WHERE email = ?",
+    const existing = await sequelize.query(
+      "SELECT faculty_code FROM faculties WHERE faculty_code = :faculty_code",
       {
-        replacements: [email],
+        replacements: { faculty_code },
         type: QueryTypes.SELECT,
       }
     );
-    if (!faculties || faculties.length === 0) {
-      return res.status(404).json({ error: "Faculty not found." });
+    if (existing.length > 0) {
+      return res.status(409).json({ message: "Faculty already exists" });
     }
-    res.json(faculties[0]);
+    const password = faculty_name.replace(/\s+/g, '').substring(0, 4).toUpperCase() + 
+                     faculty_code.toString().slice(-4);
+    await sequelize.query(
+      `INSERT INTO faculties 
+       (faculty_code, faculty_name, designation, branch, password)
+       VALUES (:code, :name, :designation, :branch, :password)`,
+      {
+        replacements: {
+          code: faculty_code,
+          name: faculty_name,
+          designation,
+          branch,
+          password
+        },
+        type: QueryTypes.INSERT,
+      }
+    );
+    res.status(201).json({
+      message: "Faculty registered successfully",
+      faculty_code,
+      generated_password: password
+    });
   } catch (error) {
-    console.error("Error fetching faculty details:", error);
-    res.status(500).json({ error: "Internal server error." });
+    console.error("Registration error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Get Faculty Details (protected route)
+router.get("/details", verifyToken, async (req, res) => {
+  const { faculty_code } = req.query;
+  if (!faculty_code) {
+    return res.status(400).json({ message: "Faculty code is required" });
+  }
+  // Ensure the token's faculty_code matches the requested faculty_code
+  if (req.decoded.faculty_code !== faculty_code) {
+    return res.status(403).json({ message: "Unauthorized access" });
+  }
+  try {
+    const faculty = await sequelize.query(
+      "SELECT faculty_code, faculty_name, designation, branch FROM faculties WHERE faculty_code = :faculty_code",
+      {
+        replacements: { faculty_code },
+        type: QueryTypes.SELECT,
+      }
+    );
+    if (!faculty.length) {
+      return res.status(404).json({ message: "Faculty not found" });
+    }
+    res.json(faculty[0]);
+  } catch (error) {
+    console.error("Details error:", error);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -91,7 +163,6 @@ router.post("/marks", async (req, res) => {
     }
     for (const assessment of assessments) {
       const { rollNumber, marks } = assessment;
-      // Check if record exists
       const existingRecord = await sequelize.query(
         "SELECT * FROM marks WHERE rollNumber = ? AND subject_code = ?",
         {
@@ -100,7 +171,6 @@ router.post("/marks", async (req, res) => {
         }
       );
       if (existingRecord.length > 0) {
-        // Determine which field to update based on exam type
         const updateField =
           examType === "CAT1"
             ? "cat1_marks"
@@ -120,7 +190,6 @@ router.post("/marks", async (req, res) => {
           }
         );
       } else {
-        // Insert new record
         await sequelize.query(
           `INSERT INTO marks (rollNumber, subject_code, cat1_marks, cat2_marks, model_marks, batchYear, semester, section, branch)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -171,35 +240,14 @@ router.get("/students", async (req, res) => {
   }
 });
 
-// Get Attendance Percentage (updated: day_order and period removed)
+// Get Attendance Percentage
 router.get("/attendance/percentage", async (req, res) => {
-  const {
-    branch,
-    academicYear,
-    semester,
-    section,
-    subject_code,
-    from_date,
-    to_date,
-    entry
-  } = req.query;
-
-  if (
-    !branch ||
-    !academicYear ||
-    !semester ||
-    !section ||
-    !from_date ||
-    !to_date ||
-    !entry ||
-    !subject_code
-  ) {
+  const { branch, academicYear, semester, section, subject_code, from_date, to_date, entry } = req.query;
+  if (!branch || !academicYear || !semester || !section || !from_date || !to_date || !entry || !subject_code) {
     return res.status(400).json({ error: "Missing required parameters" });
   }
-
   try {
     if (subject_code !== "ALL") {
-      // For a specific subject:
       const results = await sequelize.query(
         `SELECT 
             a.rollNumber, 
@@ -239,7 +287,7 @@ router.get("/attendance/percentage", async (req, res) => {
           academic_year: academicYear,
           semester: Number(semester),
           section,
-          subject_code, // specific subject code
+          subject_code,
           roll_number: row.rollNumber,
           student_name: row.student_name || "",
           present_count: pCount,
@@ -251,7 +299,6 @@ router.get("/attendance/percentage", async (req, res) => {
         };
       });
 
-      // Save/update each computed record in attendance_percentage table
       for (const record of computedResults) {
         await sequelize.query(
           `INSERT INTO attendance_percentage 
@@ -269,7 +316,6 @@ router.get("/attendance/percentage", async (req, res) => {
       }
       return res.json(computedResults);
     } else {
-      // When "ALL" subjects is selected:
       const results = await sequelize.query(
         `SELECT 
             a.rollNumber, 
@@ -298,7 +344,6 @@ router.get("/attendance/percentage", async (req, res) => {
         }
       );
 
-      // Group by student and build subject breakdown
       const groupedResults = {};
       results.forEach((row) => {
         if (!groupedResults[row.rollNumber]) {
@@ -327,7 +372,6 @@ router.get("/attendance/percentage", async (req, res) => {
         const overallPresent = student.subjects.reduce((acc, subj) => acc + subj.present_count, 0);
         const overallTotal = student.subjects.reduce((acc, subj) => acc + subj.total_periods, 0);
         const overallPerc = overallTotal > 0 ? parseFloat(((overallPresent / overallTotal) * 100).toFixed(2)) : 0;
-
         return {
           branch,
           academic_year: academicYear,
@@ -341,7 +385,7 @@ router.get("/attendance/percentage", async (req, res) => {
           from_date,
           to_date,
           entry,
-          subject_code: "ALL", // mark as aggregated record
+          subject_code: "ALL",
           subject_breakdown: JSON.stringify(student.subjects),
         };
       });
@@ -363,7 +407,6 @@ router.get("/attendance/percentage", async (req, res) => {
             type: sequelize.QueryTypes.SELECT,
           }
         );
-
         if (existingRecord && existingRecord.length > 0) {
           await sequelize.query(
             `UPDATE attendance_percentage 
@@ -406,42 +449,20 @@ router.get("/attendance/percentage", async (req, res) => {
   }
 });
 
-
-// Save attendance (Insert/Update/Delete) remains unchanged (uses day_order and period)
-// Save attendance (Insert/Update/Delete)
+// Save attendance
 router.post("/attendance", async (req, res) => {
   try {
-    // Removed the top-level day_order check, as each record in attendanceData contains its own day_order.
     const { branch, section, batchYear, semester, subject_code, attendance_date, attendanceData } = req.body;
-    if (
-      !branch ||
-      !section ||
-      !batchYear ||
-      !semester ||
-      !subject_code ||
-      !attendance_date ||
-      !attendanceData ||
-      !Array.isArray(attendanceData)
-    ) {
+    if (!branch || !section || !batchYear || !semester || !subject_code || !attendance_date || !attendanceData || !Array.isArray(attendanceData)) {
       console.error("Invalid request data:", req.body);
       return res.status(400).json({ error: "Missing required fields or invalid data format." });
     }
-
     for (const recordData of attendanceData) {
-      // Validate each record's required fields (including day_order and period)
-      if (
-        !recordData ||
-        !recordData.rollNumber ||
-        !recordData.record ||
-        !recordData.period ||
-        recordData.day_order === undefined
-      ) {
+      if (!recordData || !recordData.rollNumber || !recordData.record || !recordData.period || recordData.day_order === undefined) {
         console.error("Invalid attendance record:", recordData);
         continue;
       }
       const { rollNumber, record, period, day_order } = recordData;
-      
-      // Check if a record already exists for this rollNumber, subject, date, period, and day_order
       const existingRecord = await sequelize.query(
         "SELECT * FROM attendance WHERE rollNumber = ? AND subject_code = ? AND attendance_date = ? AND period = ? AND day_order = ?",
         {
@@ -449,14 +470,11 @@ router.post("/attendance", async (req, res) => {
           type: QueryTypes.SELECT,
         }
       );
-      
       if (existingRecord.length > 0) {
         return res.status(400).json({
           error: `Attendance for roll number ${rollNumber} for period ${period} on ${attendance_date} (Day Order: ${day_order}) is already recorded.`,
         });
       }
-      
-      // Insert new record including the day_order and period
       await sequelize.query(
         `INSERT INTO attendance 
          (rollNumber, batchYear, semester, section, subject_code, branch, attendance_date, period, day_order, record)
@@ -474,20 +492,13 @@ router.post("/attendance", async (req, res) => {
   }
 });
 
-// ==================== New Endpoints for Student Academic Performance ====================
-
-// GET /api/faculty/student/results
-// Retrieves academic results for a student by roll number.
-// Displays all subjects (from the subjects table) for the student's branch and batchYear,
-// and left joins marks (CAT1, CAT2, MODEL) from the marks table.
+// GET student academic results
 router.get("/student/results", async (req, res) => {
   try {
     const { rollNumber } = req.query;
     if (!rollNumber) {
       return res.status(400).json({ error: "Missing rollNumber parameter" });
     }
-    
-    // Fetch student details to get branch and batchYear.
     const student = await sequelize.query(
       "SELECT branch, batchYear FROM students WHERE rollNumber = ?",
       {
@@ -495,25 +506,10 @@ router.get("/student/results", async (req, res) => {
         type: QueryTypes.SELECT,
       }
     );
-    
     if (!student || student.length === 0) {
       return res.status(404).json({ error: "Student not found" });
     }
-    
     const { branch, batchYear } = student[0];
-    
-    // Debugging: fetch all marks for this student to verify that data exists.
-    const debugMarks = await sequelize.query(
-      "SELECT * FROM marks WHERE rollNumber = ?",
-      {
-        replacements: [rollNumber],
-        type: QueryTypes.SELECT,
-      }
-    );
-  
-    
-    // Retrieve all subjects for the student's branch and batchYear,
-    // and left join with the marks table on subject_code and rollNumber.
     const results = await sequelize.query(
       `SELECT 
           s.subject_code, 
@@ -534,7 +530,6 @@ router.get("/student/results", async (req, res) => {
         type: QueryTypes.SELECT,
       }
     );
-    
     res.json(results);
   } catch (error) {
     console.error("Error fetching student academic results:", error);
@@ -542,10 +537,7 @@ router.get("/student/results", async (req, res) => {
   }
 });
 
-
-
-// GET /api/faculty/student/attendance
-// Retrieves attendance percentage records for a student by roll number.
+// GET student attendance
 router.get("/student/attendance", async (req, res) => {
   try {
     const { rollNumber } = req.query;
