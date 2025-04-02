@@ -22,7 +22,8 @@ const corsOptions = {
   origin: (origin, callback) => {
     const allowedOrigins = [
       'https://college-systemcahcet.vercel.app',
-      'https://main.d1dqbntcyikp3v.amplifyapp.com'
+      'https://main.d1dqbntcyikp3v.amplifyapp.com',
+      'https://localhost:3000'
     ];
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
@@ -40,12 +41,6 @@ app.use(express.json());
 app.use(cors(corsOptions));
 app.use(limiter);
 app.options('*', cors(corsOptions));
-
-// Database (if needed)
-// const sequelize = require('./config/db');
-// sequelize.sync({ alter: true })
-//   .then(() => console.log('Database connected'))
-//   .catch(err => console.error('DB error:', err));
 
 // Mount routes
 const studentRoutes = require('./routes/studentRoutes');

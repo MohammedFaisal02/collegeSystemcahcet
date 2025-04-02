@@ -171,7 +171,7 @@ router.get("/students", async (req, res) => {
   }
 });
 
-// Faculty Route: Get attendance Percentage (Faculty View)
+// Get Attendance Percentage (updated: day_order and period removed)
 router.get("/attendance/percentage", async (req, res) => {
   const {
     branch,
@@ -181,7 +181,7 @@ router.get("/attendance/percentage", async (req, res) => {
     subject_code,
     from_date,
     to_date,
-    entry,
+    entry
   } = req.query;
 
   if (
@@ -191,75 +191,22 @@ router.get("/attendance/percentage", async (req, res) => {
     !section ||
     !from_date ||
     !to_date ||
-    !entry
+    !entry ||
+    !subject_code
   ) {
     return res.status(400).json({ error: "Missing required parameters" });
   }
 
   try {
-    // Check if records already exist
-    const existingRecords = await sequelize.query(
-      `SELECT * FROM attendance_percentage 
-       WHERE branch = :branch 
-         AND academic_year = :academicYear 
-         AND semester = :semester 
-         AND section = :section 
-         AND from_date = :from_date 
-         AND to_date = :to_date 
-         AND entry = :entry 
-         AND subject_code = :subject_code`,
-      {
-        replacements: {
-          branch,
-          academicYear,
-          semester: Number(semester),
-          section,
-          from_date,
-          to_date,
-          entry,
-          subject_code,
-        },
-        type: sequelize.QueryTypes.SELECT,
-      }
-    );
-
-    if (existingRecords.length > 0) {
-      const parsedRecords = existingRecords.map(record => {
-        let subjects = [];
-        try {
-          if (typeof record.subject_breakdown === 'string') {
-            subjects = JSON.parse(record.subject_breakdown);
-          } else if (Array.isArray(record.subject_breakdown)) {
-            subjects = record.subject_breakdown;
-          }
-        } catch (e) {
-          console.error("Subject breakdown parsing error:", e);
-        }
-        // Round each subject percentage to two decimals
-        const formattedSubjects = subjects.map(sub => ({
-          ...sub,
-          percentage: parseFloat(sub.percentage).toFixed(2)
-        }));
-        return {
-          ...record,
-          subjects: formattedSubjects,
-          total_presents: record.present_count,
-          total_days: record.total_days,
-          overall_percentage: record.percentage
-        };
-      });
-      return res.json(parsedRecords);
-    }
-
-    // Compute attendance percentage for a specific subject (non-ALL)
     if (subject_code !== "ALL") {
+      // For a specific subject:
       const results = await sequelize.query(
         `SELECT 
             a.rollNumber, 
             s.name AS student_name, 
             a.subject_code,
             SUM(CASE WHEN a.record = 'P' THEN 1 ELSE 0 END) AS present_count,
-            COUNT(DISTINCT a.attendance_date) AS total_days
+            COUNT(*) AS total_periods
          FROM attendance a
          JOIN students s ON a.rollNumber = s.rollNumber
          WHERE a.branch = :branch
@@ -277,7 +224,7 @@ router.get("/attendance/percentage", async (req, res) => {
             section,
             subject_code,
             from_date,
-            to_date,
+            to_date
           },
           type: sequelize.QueryTypes.SELECT,
         }
@@ -285,32 +232,35 @@ router.get("/attendance/percentage", async (req, res) => {
 
       const computedResults = results.map((row) => {
         const pCount = Number(row.present_count);
-        const tDays = Number(row.total_days);
-        const percentage = tDays
-          ? parseFloat(((pCount / tDays) * 100).toFixed(2))
-          : 0;
+        const tPeriods = Number(row.total_periods);
+        const percentage = tPeriods ? parseFloat(((pCount / tPeriods) * 100).toFixed(2)) : 0;
         return {
           branch,
           academic_year: academicYear,
           semester: Number(semester),
           section,
-          subject_code,
+          subject_code, // specific subject code
           roll_number: row.rollNumber,
           student_name: row.student_name || "",
           present_count: pCount,
-          total_days: tDays,
-          percentage, // Already rounded to 2 decimals
+          total_days: tPeriods,
+          percentage,
           from_date,
           to_date,
-          entry,
+          entry
         };
       });
 
+      // Save/update each computed record in attendance_percentage table
       for (const record of computedResults) {
         await sequelize.query(
           `INSERT INTO attendance_percentage 
            (branch, academic_year, semester, section, subject_code, roll_number, student_name, present_count, total_days, percentage, from_date, to_date, entry)
-           VALUES (:branch, :academic_year, :semester, :section, :subject_code, :roll_number, :student_name, :present_count, :total_days, :percentage, :from_date, :to_date, :entry)`,
+           VALUES (:branch, :academic_year, :semester, :section, :subject_code, :roll_number, :student_name, :present_count, :total_days, :percentage, :from_date, :to_date, :entry)
+           ON DUPLICATE KEY UPDATE
+             present_count = VALUES(present_count),
+             total_days = VALUES(total_days),
+             percentage = VALUES(percentage)`,
           {
             replacements: record,
             type: sequelize.QueryTypes.INSERT,
@@ -319,14 +269,14 @@ router.get("/attendance/percentage", async (req, res) => {
       }
       return res.json(computedResults);
     } else {
-      // "ALL" subjects case
+      // When "ALL" subjects is selected:
       const results = await sequelize.query(
         `SELECT 
             a.rollNumber, 
             s.name AS student_name, 
             a.subject_code,
             SUM(CASE WHEN a.record = 'P' THEN 1 ELSE 0 END) AS present_count,
-            COUNT(DISTINCT a.attendance_date) AS total_days
+            COUNT(*) AS total_periods
          FROM attendance a
          JOIN students s ON a.rollNumber = s.rollNumber
          WHERE a.branch = :branch
@@ -342,85 +292,111 @@ router.get("/attendance/percentage", async (req, res) => {
             semester: Number(semester),
             section,
             from_date,
-            to_date,
+            to_date
           },
           type: sequelize.QueryTypes.SELECT,
         }
       );
 
-      const studentMap = {};
-      results.forEach(row => {
-        const pCount = Number(row.present_count);
-        const tDays = Number(row.total_days);
-        const percentage = tDays
-          ? parseFloat(((pCount / tDays) * 100).toFixed(2))
-          : 0;
-        if (!studentMap[row.rollNumber]) {
-          studentMap[row.rollNumber] = {
+      // Group by student and build subject breakdown
+      const groupedResults = {};
+      results.forEach((row) => {
+        if (!groupedResults[row.rollNumber]) {
+          groupedResults[row.rollNumber] = {
             branch,
             academic_year: academicYear,
             semester: Number(semester),
             section,
-            from_date,
-            to_date,
-            entry,
             roll_number: row.rollNumber,
             student_name: row.student_name || "",
             subjects: [],
-            totalPresents: 0,
-            totalDays: 0,
           };
         }
-        studentMap[row.rollNumber].subjects.push({
+        groupedResults[row.rollNumber].subjects.push({
           subject_code: row.subject_code,
-          present_count: pCount,
-          total_days: tDays,
-          percentage: percentage, // Rounded to 2 decimals
+          present_count: Number(row.present_count),
+          total_periods: Number(row.total_periods),
+          percentage:
+            Number(row.total_periods) > 0
+              ? parseFloat(((Number(row.present_count) / Number(row.total_periods)) * 100).toFixed(2))
+              : 0,
         });
-        studentMap[row.rollNumber].totalPresents += pCount;
-        studentMap[row.rollNumber].totalDays += tDays;
       });
 
-      const computedResults = Object.values(studentMap).map(student => {
-        const overallPercentage = student.totalDays
-          ? parseFloat(((student.totalPresents / student.totalDays) * 100).toFixed(2))
-          : 0;
+      const computedResults = Object.values(groupedResults).map((student) => {
+        const overallPresent = student.subjects.reduce((acc, subj) => acc + subj.present_count, 0);
+        const overallTotal = student.subjects.reduce((acc, subj) => acc + subj.total_periods, 0);
+        const overallPerc = overallTotal > 0 ? parseFloat(((overallPresent / overallTotal) * 100).toFixed(2)) : 0;
+
         return {
-          ...student,
-          overallPercentage, // Rounded to 2 decimals
+          branch,
+          academic_year: academicYear,
+          semester: Number(semester),
+          section,
+          roll_number: student.roll_number,
+          student_name: student.student_name,
+          present_count: overallPresent,
+          total_days: overallTotal,
+          percentage: overallPerc,
+          from_date,
+          to_date,
+          entry,
+          subject_code: "ALL", // mark as aggregated record
+          subject_breakdown: JSON.stringify(student.subjects),
         };
       });
 
-      for (const student of computedResults) {
-        // Before inserting, round each subject's percentage to 2 decimals
-        const formattedBreakdown = student.subjects.map(sub => ({
-          ...sub,
-          percentage: parseFloat(sub.percentage).toFixed(2)
-        }));
-        await sequelize.query(
-          `INSERT INTO attendance_percentage 
-           (branch, academic_year, semester, section, subject_code, roll_number, student_name, present_count, total_days, percentage, subject_breakdown, from_date, to_date, entry)
-           VALUES (:branch, :academic_year, :semester, :section, :subject_code, :roll_number, :student_name, :present_count, :total_days, :percentage, :subject_breakdown, :from_date, :to_date, :entry)`,
+      for (const record of computedResults) {
+        const existingRecord = await sequelize.query(
+          `SELECT * FROM attendance_percentage 
+           WHERE branch = :branch 
+             AND academic_year = :academic_year 
+             AND semester = :semester 
+             AND section = :section 
+             AND roll_number = :roll_number 
+             AND from_date = :from_date 
+             AND to_date = :to_date 
+             AND entry = :entry
+             AND subject_code = :subject_code`,
           {
-            replacements: {
-              branch: student.branch,
-              academic_year: student.academic_year,
-              semester: student.semester,
-              section: student.section,
-              subject_code: "ALL",
-              roll_number: student.roll_number,
-              student_name: student.student_name,
-              present_count: student.totalPresents,
-              total_days: student.totalDays,
-              percentage: parseFloat(student.overallPercentage).toFixed(2),
-              subject_breakdown: JSON.stringify(formattedBreakdown),
-              from_date: student.from_date,
-              to_date: student.to_date,
-              entry: student.entry,
-            },
-            type: sequelize.QueryTypes.INSERT,
+            replacements: record,
+            type: sequelize.QueryTypes.SELECT,
           }
         );
+
+        if (existingRecord && existingRecord.length > 0) {
+          await sequelize.query(
+            `UPDATE attendance_percentage 
+             SET present_count = :present_count,
+                 total_days = :total_days,
+                 percentage = :percentage,
+                 subject_breakdown = :subject_breakdown,
+                 subject_code = :subject_code
+             WHERE branch = :branch 
+               AND academic_year = :academic_year 
+               AND semester = :semester 
+               AND section = :section 
+               AND roll_number = :roll_number 
+               AND from_date = :from_date 
+               AND to_date = :to_date 
+               AND entry = :entry
+               AND subject_code = :subject_code`,
+            {
+              replacements: record,
+              type: sequelize.QueryTypes.UPDATE,
+            }
+          );
+        } else {
+          await sequelize.query(
+            `INSERT INTO attendance_percentage 
+             (branch, academic_year, semester, section, roll_number, student_name, present_count, total_days, percentage, from_date, to_date, entry, subject_code, subject_breakdown)
+             VALUES (:branch, :academic_year, :semester, :section, :roll_number, :student_name, :present_count, :total_days, :percentage, :from_date, :to_date, :entry, :subject_code, :subject_breakdown)`,
+            {
+              replacements: record,
+              type: sequelize.QueryTypes.INSERT,
+            }
+          );
+        }
       }
       return res.json(computedResults);
     }
@@ -430,65 +406,68 @@ router.get("/attendance/percentage", async (req, res) => {
   }
 });
 
+
+// Save attendance (Insert/Update/Delete) remains unchanged (uses day_order and period)
 // Save attendance (Insert/Update/Delete)
 router.post("/attendance", async (req, res) => {
   try {
+    // Removed the top-level day_order check, as each record in attendanceData contains its own day_order.
     const { branch, section, batchYear, semester, subject_code, attendance_date, attendanceData } = req.body;
-    if (!branch || !section || !batchYear || !semester || !subject_code || !attendance_date || !attendanceData || !Array.isArray(attendanceData)) {
+    if (
+      !branch ||
+      !section ||
+      !batchYear ||
+      !semester ||
+      !subject_code ||
+      !attendance_date ||
+      !attendanceData ||
+      !Array.isArray(attendanceData)
+    ) {
       console.error("Invalid request data:", req.body);
       return res.status(400).json({ error: "Missing required fields or invalid data format." });
     }
+
     for (const recordData of attendanceData) {
-      if (!recordData || !recordData.rollNumber || !recordData.record) {
+      // Validate each record's required fields (including day_order and period)
+      if (
+        !recordData ||
+        !recordData.rollNumber ||
+        !recordData.record ||
+        !recordData.period ||
+        recordData.day_order === undefined
+      ) {
         console.error("Invalid attendance record:", recordData);
         continue;
       }
-      const { rollNumber, record } = recordData;
+      const { rollNumber, record, period, day_order } = recordData;
+      
+      // Check if a record already exists for this rollNumber, subject, date, period, and day_order
       const existingRecord = await sequelize.query(
-        "SELECT * FROM attendance WHERE rollNumber = ? AND subject_code = ? AND attendance_date = ?",
+        "SELECT * FROM attendance WHERE rollNumber = ? AND subject_code = ? AND attendance_date = ? AND period = ? AND day_order = ?",
         {
-          replacements: [rollNumber, subject_code, attendance_date],
+          replacements: [rollNumber, subject_code, attendance_date, period, day_order],
           type: QueryTypes.SELECT,
         }
       );
-      if (record === "P") {
-        if (existingRecord.length > 0) {
-          await sequelize.query(
-            "UPDATE attendance SET record = 'P' WHERE rollNumber = ? AND subject_code = ? AND attendance_date = ?",
-            {
-              replacements: [rollNumber, subject_code, attendance_date],
-              type: QueryTypes.UPDATE,
-            }
-          );
-        } else {
-          await sequelize.query(
-            `INSERT INTO attendance (rollNumber, batchYear, semester, section, subject_code, branch, attendance_date, record)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            {
-              replacements: [rollNumber, batchYear, semester, section, subject_code, branch, attendance_date, "P"],
-              type: QueryTypes.INSERT,
-            }
-          );
-        }
-      } else if (record === "A") {
-        await sequelize.query(
-          "DELETE FROM attendance WHERE rollNumber = ? AND subject_code = ? AND attendance_date = ?",
-          {
-            replacements: [rollNumber, subject_code, attendance_date],
-            type: QueryTypes.DELETE,
-          }
-        );
-        await sequelize.query(
-          `INSERT INTO attendance (rollNumber, batchYear, semester, section, subject_code, branch, attendance_date, record)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          {
-            replacements: [rollNumber, batchYear, semester, section, subject_code, branch, attendance_date, "A"],
-            type: QueryTypes.INSERT,
-          }
-        );
+      
+      if (existingRecord.length > 0) {
+        return res.status(400).json({
+          error: `Attendance for roll number ${rollNumber} for period ${period} on ${attendance_date} (Day Order: ${day_order}) is already recorded.`,
+        });
       }
+      
+      // Insert new record including the day_order and period
+      await sequelize.query(
+        `INSERT INTO attendance 
+         (rollNumber, batchYear, semester, section, subject_code, branch, attendance_date, period, day_order, record)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        {
+          replacements: [rollNumber, batchYear, semester, section, subject_code, branch, attendance_date, period, day_order, record],
+          type: QueryTypes.INSERT,
+        }
+      );
     }
-    res.json({ message: "attendance saved successfully!" });
+    res.json({ message: "Attendance saved successfully!" });
   } catch (error) {
     console.error("Error saving attendance:", error);
     res.status(500).json({ error: "Internal server error" });
