@@ -1,0 +1,61 @@
+/* ========================================================================
+   FacultyLogin.css
+   Styles for the Faculty Login Page
+   ======================================================================== */
+
+/* Container for the login form */
+.faculty-login-container {
+  max-width: 400px;
+  margin: 50px auto;
+  padding: 30px 20px;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  font-family: Arial, sans-serif;
+}
+
+/* Header styling */
+.faculty-login-container h2 {
+  margin-bottom: 20px;
+  color: #333333;
+}
+
+/* Form layout */
+.faculty-login-container form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+/* Input fields styling */
+.faculty-login-container form input {
+  padding: 12px;
+  font-size: 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+/* Button styling */
+.faculty-login-container form button {
+  padding: 12px;
+  font-size: 16px;
+  background-color: #3498db;
+  border: none;
+  color: #ffffff;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.faculty-login-container form button:hover {
+  background-color: #2980b9;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .faculty-login-container {
+    margin: 20px;
+    padding: 20px;
+  }
+}

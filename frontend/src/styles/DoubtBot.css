@@ -1,0 +1,243 @@
+/* DoubtBot-specific CSS with "doubtbot-" namespace for isolation */
+
+.doubtbot-container {
+  width: 90%;
+  max-width: 1200px;
+  margin: 20px auto;
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  height: 100vh;
+  overflow: hidden;
+}
+
+.doubtbot-header {
+  position: relative;
+  background-color: #f7f7f8;
+  padding: 16px;
+  border-bottom: 1px solid #e2e2e2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.doubtbot-header h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #333;
+}
+
+/* Home button positioned top right */
+.doubtbot-home-btn {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  padding: 8px 12px;
+  font-size: 14px;
+  background-color: #007aff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.doubtbot-status {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+}
+
+.doubtbot-status.ready {
+  background-color: #d1e7dd;
+  color: #0f5132;
+}
+
+.doubtbot-status.unavailable {
+  background-color: #f8d7da;
+  color: #842029;
+}
+
+.doubtbot-search-bar {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid #e2e2e2;
+  background-color: #f7f7f8;
+}
+
+.doubtbot-search-bar input {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.doubtbot-chat-history {
+  flex: 1;
+  padding: 16px;
+  background-color: #f7f7f8;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+}
+
+.doubtbot-chat-history::-webkit-scrollbar {
+  width: 8px;
+}
+
+.doubtbot-chat-history::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.doubtbot-chat-history::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.doubtbot-chat-history::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+.doubtbot-message {
+  max-width: 80%;
+  align-self: flex-start;
+}
+
+.doubtbot-message.user {
+  align-self: flex-end;
+}
+
+.doubtbot-message-content {
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.doubtbot-message.user .doubtbot-message-content {
+  background-color: #007aff;
+  color: #fff;
+  border-bottom-right-radius: 0;
+}
+
+.doubtbot-message.bot .doubtbot-message-content {
+  background-color: #e5e5ea;
+  color: #000;
+  border-bottom-left-radius: 0;
+}
+
+.doubtbot-chat-input {
+  position: relative;
+  padding: 16px 24px;
+  border-top: 1px solid #e2e2e2;
+  background-color: #fff;
+  display: flex;
+  align-items: center;
+}
+
+.doubtbot-input-field {
+  width: 100%;
+  padding: 16px 60px 16px 24px;
+  border: 1px solid #ccc;
+  border-radius: 28px;
+  font-size: 17px;
+  min-height: 52px;
+}
+
+.doubtbot-submit-btn {
+  position: absolute;
+  right: 32px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 8px;
+  background-color: #007aff;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.doubtbot-submit-btn:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.doubtbot-loading-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #666;
+  padding: 12px;
+}
+
+.doubtbot-loader {
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #007aff;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  animation: doubtbot-spin 1s linear infinite;
+}
+
+@keyframes doubtbot-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.doubtbot-ai-warning {
+  padding: 16px;
+  background-color: #fff3cd;
+  color: #856404;
+  border-radius: 8px;
+  margin: 16px;
+  text-align: center;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .doubtbot-container {
+    width: 95%;
+    max-width: 100%;
+    margin: 10px auto;
+  }
+
+  .doubtbot-header,
+  .doubtbot-search-bar,
+  .doubtbot-chat-input {
+    padding: 12px 16px;
+  }
+
+  .doubtbot-input-field {
+    padding: 12px 50px 12px 16px;
+    font-size: 16px;
+  }
+
+  .doubtbot-submit-btn {
+    right: 16px;
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+
+  .doubtbot-header h2 {
+    font-size: 18px;
+  }
+}

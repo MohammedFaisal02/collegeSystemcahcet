@@ -1,0 +1,76 @@
+/* ========================================================================
+   StudentLogin.css
+   Styles for the Student Login Page (Responsive)
+   ======================================================================== */
+
+/* Container for the login form */
+.student-login-container {
+  max-width: 400px;
+  margin: 50px auto;
+  padding: 30px 20px;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  font-family: Arial, sans-serif;
+}
+
+/* Header styling */
+.student-login-container h1 {
+  margin-bottom: 20px;
+  color: #333333;
+}
+
+/* Form layout */
+.student-login-container form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+/* Input fields styling */
+.student-login-container form input {
+  padding: 12px;
+  font-size: 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+/* Button styling */
+.student-login-container form button {
+  padding: 12px;
+  font-size: 16px;
+  background-color: #3498db;
+  border: none;
+  color: #ffffff;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.student-login-container form button:hover {
+  background-color: #2980b9;
+}
+
+/* Error message styling */
+.student-login-container .error {
+  color: red;
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+/* ========================================================================
+   Responsive Styles
+   ======================================================================== */
+@media (max-width: 480px) {
+  .student-login-container {
+    margin: 20px;
+    padding: 20px;
+  }
+  
+  .student-login-container form input,
+  .student-login-container form button {
+    font-size: 14px;
+    padding: 10px;
+  }
+}
