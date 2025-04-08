@@ -86,7 +86,7 @@ const FacultyDashboard = () => {
         const facultyCode = localStorage.getItem('facultyCode');
 
         if (!token || !facultyCode) {
-          navigate('/faculty-login');
+          navigate('/');
           return;
         }
 
@@ -94,7 +94,7 @@ const FacultyDashboard = () => {
 
         if (decoded.exp * 1000 < Date.now() || decoded.faculty_code.toString() !== facultyCode) {
           localStorage.clear();
-          navigate('/faculty-login');
+          navigate('/');
           return;
         }
 
@@ -113,7 +113,7 @@ const FacultyDashboard = () => {
         setError('Failed to load faculty details');
         if (error.response?.status === 401) {
           localStorage.clear();
-          navigate('/faculty-login');
+          navigate('/');
         }
       } finally {
         setLoading(false);
