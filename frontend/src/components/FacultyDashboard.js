@@ -41,6 +41,7 @@ const FacultyDashboard = () => {
   // Dropdown options
   const branches = ['CSE', 'AIDS', 'IT', 'ECE', 'EEE', 'MECH', 'CIVIL', 'MCA', 'MBA'];
   const academicYears = ['2025', '2026', '2027', '2028'];
+  // Default full list of semesters
   const semesters = ['1', '2', '3', '4', '5', '6', '7', '8'];
   const sections = ['A', 'B'];
 
@@ -220,7 +221,7 @@ const FacultyDashboard = () => {
     }
   };
 
-  // Save assessments (unchanged)
+  // Save assessments
   const handleSaveAssessments = async () => {
     if (!selectedBranch || !selectedSection || !selectedSubject || assessmentStudents.length === 0 || !selectedExamType) {
       alert('Please ensure all filters are selected and students are fetched.');
@@ -268,7 +269,6 @@ const FacultyDashboard = () => {
           ...attendanceData.map(rec => ({ ...rec, labBatch: "1" })),
           ...attendanceData.map(rec => ({ ...rec, labBatch: "2" }))
         ];
-        // Send combinedAttendanceData; backend should ignore labBatch field when saving
         await axios.post(`${process.env.REACT_APP_API_URL}/api/faculty/attendance`, {
           branch: selectedBranch,
           section: selectedSection,
@@ -297,7 +297,7 @@ const FacultyDashboard = () => {
     }
   };
 
-  // Calculate Attendance Percentage (unchanged)
+  // Calculate Attendance Percentage
   const handleCalculateAttendancePercentage = async () => {
     if (!apBranch || !apAcademicYear || !apSemester || !apSection || !apSubject || !apFromDate || !apToDate || !apEntry) {
       alert('Please select all filters for attendance percentage.');
@@ -355,7 +355,7 @@ const FacultyDashboard = () => {
       .map(sem => ({ semester: sem, attendance: groups[sem] }));
   };
 
-  // Search student by roll number (unchanged)
+  // Search student by roll number
   const handleSearchStudent = async () => {
     if (!searchRollNumber.trim()) {
       alert('Please enter a roll number.');
@@ -385,15 +385,12 @@ const FacultyDashboard = () => {
     }
   };
 
-  // -------------------
-  // PDF Generation Function (unchanged except layout as before)
+  // PDF Generation Function
   const generatePdf = () => {
-    // Header details for PDF
     const collegeName = "C. ABDUL HAKEEM COLLEGE OF ENGINEERING & TECHNOLOGY";
     const collegeLocation = "MELVISHARAM - 632509";
     const department = "Department of Computer Science and Engineering";
-    const academicYearStr = "Academic Year 2024 - 2025"; // Constant academic year
-
+    const academicYearStr = "Academic Year 2024 - 2025";
     const branch = apBranch;
     const section = apSection;
     const fromDate = apFromDate;
@@ -402,14 +399,9 @@ const FacultyDashboard = () => {
     const facultyName = facultyDetails ? facultyDetails.faculty_name : "";
 
     const doc = new jsPDF('p', 'mm', 'a4');
-
     const marginLeft = 10;
     const marginRight = 200;
-
-    // Add logo at top left (20mm width)
     doc.addImage(logo, 'JPEG', marginLeft, 5, 20, 20);
-
-    // Top header texts
     doc.setFont("times", "bold");
     doc.setFontSize(12);
     doc.text(collegeName, 105, 12, { align: "center" });
@@ -420,13 +412,11 @@ const FacultyDashboard = () => {
     doc.setDrawColor(0, 0, 0);
     doc.line(marginLeft, 33, marginRight, 33);
 
-    // Attendance Percentage title after horizontal line
     const titleY = 42;
     doc.setFont("times", "bold");
     doc.setFontSize(16);
     doc.text("Attendance Percentage", 105, titleY, { align: "center" });
 
-    // Header block for attendance details below the title
     const headerBlockStartY = 52;
     let currentY = headerBlockStartY;
     const leftX = 22;
@@ -580,11 +570,14 @@ const FacultyDashboard = () => {
           </div>
         );
       case 'assessment':
+        // Compute semester options: if selectedBranch is MBA or MCA, only semesters 1-4 are allowed.
+        const availableSemestersAssessment = (selectedBranch === "MBA" || selectedBranch === "MCA")
+          ? ['1', '2', '3', '4']
+          : semesters;
         return (
           <div className="tab-content assessment-tab">
             <h2>Assessment</h2>
             <div className="filters-container">
-              {/* Assessment filter groups */}
               <div className="filter-group">
                 <label>Branch:</label>
                 <select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
@@ -603,7 +596,7 @@ const FacultyDashboard = () => {
                 <label>Semester:</label>
                 <select value={selectedSemester} onChange={(e) => setSelectedSemester(e.target.value)}>
                   <option value="">-- Select Semester --</option>
-                  {semesters.map(s => (<option key={s} value={s}>{s}</option>))}
+                  {availableSemestersAssessment.map(s => (<option key={s} value={s}>{s}</option>))}
                 </select>
               </div>
               <div className="filter-group">
@@ -679,6 +672,10 @@ const FacultyDashboard = () => {
           </div>
         );
       case 'attendance':
+        // For attendance, use the same logic based on selectedBranch.
+        const availableSemestersAttendance = (selectedBranch === "MBA" || selectedBranch === "MCA")
+          ? ['1', '2', '3', '4']
+          : semesters;
         return (
           <div className="tab-content attendance-tab">
             <h2>Attendance</h2>
@@ -701,7 +698,7 @@ const FacultyDashboard = () => {
                 <label>Semester:</label>
                 <select value={selectedSemester} onChange={(e) => setSelectedSemester(e.target.value)}>
                   <option value="">-- Select Semester --</option>
-                  {semesters.map(s => (<option key={s} value={s}>{s}</option>))}
+                  {availableSemestersAttendance.map(s => (<option key={s} value={s}>{s}</option>))}
                 </select>
               </div>
               <div className="filter-group">
@@ -722,7 +719,6 @@ const FacultyDashboard = () => {
                   ))}
                 </select>
               </div>
-              {/* New fields for Lab Attendance */}
               <div className="filter-group">
                 <label>Is Lab?</label>
                 <select value={isLab} onChange={(e) => setIsLab(e.target.value)}>
@@ -809,6 +805,10 @@ const FacultyDashboard = () => {
           </div>
         );
       case 'attendancePercentage':
+        // For Attendance Percentage, compute available semesters based on apBranch.
+        const availableAPSemesters = (apBranch === "MBA" || apBranch === "MCA")
+          ? ['1', '2', '3', '4']
+          : semesters;
         return (
           <div className="tab-content attendance-percentage-tab">
             <h2>Attendance Percentage</h2>
@@ -835,9 +835,7 @@ const FacultyDashboard = () => {
                 <label>Semester:</label>
                 <select value={apSemester} onChange={(e) => setApSemester(e.target.value)}>
                   <option value="">-- Select Semester --</option>
-                  {semesters.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
+                  {availableAPSemesters.map(s => (<option key={s} value={s}>{s}</option>))}
                 </select>
               </div>
               <div className="filter-group">
