@@ -210,6 +210,7 @@ router.post("/marks", async (req, res) => {
 // Get Students List (supports lab attendance if query parameters provided)
 // Expected query parameters: branch, section, academicYear, semester, subjectCode
 // Optional: isLab (\"Yes\"), labBatch (\"1\" or \"2\")
+// Get Students List (supports lab attendance if query parameters provided)
 router.get("/students", async (req, res) => {
   try {
     const { branch, section, academicYear, semester, subjectCode, isLab, labBatch } = req.query;
@@ -239,10 +240,11 @@ router.get("/students", async (req, res) => {
 
       const { roll_from, roll_to, extra_rolls } = labBatchInfo[0];
 
-      // Fetch students between roll_from and roll_to
+      // Use numeric conversion to compare roll numbers correctly in the range query
       const mainQuery = `
         SELECT * FROM students
-        WHERE branch = ? AND section = ? AND batchYear = ? AND rollNumber BETWEEN ? AND ?
+        WHERE branch = ? AND section = ? AND batchYear = ?
+          AND CAST(rollNumber AS UNSIGNED) BETWEEN CAST(? AS UNSIGNED) AND CAST(? AS UNSIGNED)
       `;
       const mainStudents = await sequelize.query(mainQuery, {
         replacements: [branch, section, academicYear, roll_from, roll_to],
@@ -255,7 +257,8 @@ router.get("/students", async (req, res) => {
         const placeholders = extraRollsArray.map(() => "?").join(",");
         const extraQuery = `
           SELECT * FROM students
-          WHERE branch = ? AND section = ? AND batchYear = ? AND rollNumber IN (${placeholders})
+          WHERE branch = ? AND section = ? AND batchYear = ?
+            AND CAST(rollNumber AS UNSIGNED) IN (${placeholders})
         `;
         extraStudents = await sequelize.query(extraQuery, {
           replacements: [branch, section, academicYear, ...extraRollsArray],
@@ -263,16 +266,36 @@ router.get("/students", async (req, res) => {
         });
       }
 
-      // Combine and sort students
+      // Combine students and sort with custom logic:
+      // - Purely numeric roll numbers come first, sorted by numeric value.
+      // - If one roll number is numeric and the other is alphanumeric, the numeric one comes first.
+      // - Otherwise, use lexicographical order.
+      function isNumeric(str) {
+        return /^\d+$/.test(str);
+      }
       const allStudents = [...mainStudents, ...extraStudents];
-      allStudents.sort((a, b) => a.rollNumber - b.rollNumber);
-
+      allStudents.sort((a, b) => {
+        const aIsNumeric = isNumeric(a.rollNumber);
+        const bIsNumeric = isNumeric(b.rollNumber);
+        if (aIsNumeric && bIsNumeric) {
+          return parseInt(a.rollNumber, 10) - parseInt(b.rollNumber, 10);
+        } else if (aIsNumeric && !bIsNumeric) {
+          return -1;
+        } else if (!aIsNumeric && bIsNumeric) {
+          return 1;
+        } else {
+          return a.rollNumber.localeCompare(b.rollNumber);
+        }
+      });
       return res.json(allStudents);
     } else {
+      // For non-lab attendance, use SQL to sort:
       const query = `
         SELECT * FROM students
         WHERE branch = ? AND section = ? AND batchYear = ?
-        ORDER BY rollNumber ASC
+        ORDER BY 
+          CASE WHEN rollNumber REGEXP '^[0-9]+$' THEN 0 ELSE 1 END ASC,
+          CASE WHEN rollNumber REGEXP '^[0-9]+$' THEN CAST(rollNumber AS UNSIGNED) ELSE rollNumber END ASC
       `;
       const students = await sequelize.query(query, {
         replacements: [branch, section, academicYear],
@@ -285,6 +308,7 @@ router.get("/students", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
 
 // Get Attendance Percentage
 router.get("/attendance/percentage", async (req, res) => {
