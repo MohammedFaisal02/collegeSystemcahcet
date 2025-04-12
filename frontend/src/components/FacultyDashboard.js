@@ -190,23 +190,31 @@ const FacultyDashboard = () => {
 
   // Fetch students for attendance – now considers lab attendance
   const handleFetchAttendanceStudents = async () => {
-    if (!selectedBranch || !selectedAcademicYear || !selectedSemester || !selectedSection || !selectedSubject) {
+    // For lab mode, we only need branch, academicYear, and section.
+    // For non-lab mode, semester and subject are required.
+    if (
+      !selectedBranch ||
+      !selectedAcademicYear ||
+      !selectedSection ||
+      (isLab === "No" && (!selectedSemester || !selectedSubject))
+    ) {
       alert('Please select all filters for attendance.');
       return;
     }
     try {
       setLoading(true);
-      const params = {
+      let params = {
         branch: selectedBranch,
         section: selectedSection,
-        subjectCode: selectedSubject,
         academicYear: selectedAcademicYear,
-        semester: selectedSemester,
       };
-      // If lab is enabled, include extra parameters so that backend filters via lab_batches table
+      // If lab attendance is enabled, remove semester and subjectCode from parameters.
       if (isLab === "Yes") {
         params.isLab = "Yes";
         params.labBatch = labBatch;
+      } else {
+        params.subjectCode = selectedSubject;
+        params.semester = selectedSemester;
       }
       const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/faculty/students`, { params });
       const studentsWithAttendance = res.data.map(student => ({
@@ -498,7 +506,7 @@ const FacultyDashboard = () => {
           const subData = subjectsData.find(s => s.subject_code.toUpperCase() === sub.subject_code.toUpperCase()) || {};
           const pres = Number(subData.present_count || 0);
           const periods = Number(subData.total_periods || 0);
-          subjectInfo[sub.subject_code] = `${pres} / ${periods} (${periods > 0 ? ((pres/periods)*100).toFixed(2) : "0.00"}%)`;
+          subjectInfo[sub.subject_code] = `${pres} / ${periods} (${periods > 0 ? ((pres / periods) * 100).toFixed(2) : "0.00"}%)`;
         });
         return {
           roll_number: row.roll_number,
@@ -752,11 +760,12 @@ const FacultyDashboard = () => {
                 <label>Day Order:</label>
                 <select value={selectedDayOrder} onChange={(e) => setSelectedDayOrder(e.target.value)}>
                   <option value="">-- Select Day Order --</option>
-                  {Array.from({ length: 5 }, (_, i) => i + 1).map(day => (
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => (
                     <option key={day} value={day}>{day}</option>
                   ))}
                 </select>
               </div>
+
             </div>
             <div className="button-group">
               <button className="action-button" onClick={handleFetchAttendanceStudents}>

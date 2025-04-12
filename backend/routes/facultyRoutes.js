@@ -208,28 +208,47 @@ router.post("/marks", async (req, res) => {
 });
 
 // Get Students List (supports lab attendance if query parameters provided)
-// Expected query parameters: branch, section, academicYear, semester, subjectCode
-// Optional: isLab (\"Yes\"), labBatch (\"1\" or \"2\")
-// Get Students List (supports lab attendance if query parameters provided)
+/// GET /students
+/// GET /students
 router.get("/students", async (req, res) => {
   try {
     const { branch, section, academicYear, semester, subjectCode, isLab, labBatch } = req.query;
+
     if (!branch || !section || !academicYear) {
       return res.status(400).json({ error: "Branch, section, and academicYear are required." });
     }
 
+   // 1) If a roll has "R", it goes into the "R group" (pushed to the end).
+// 2) Otherwise, compare by the numeric portion of the roll only.
+function customSort(a, b) {
+  const rollA = String(a.rollNumber).trim();
+  const rollB = String(b.rollNumber).trim();
+
+  const aHasR = /r/i.test(rollA);
+  const bHasR = /r/i.test(rollB);
+
+  // If exactly one roll has R, push that one to the end:
+  if (aHasR && !bHasR) return 1;   // A goes after B
+  if (!aHasR && bHasR) return -1; // A goes before B
+
+  // Both have R or both do not have R → compare by numeric portion
+  const numA = parseInt(rollA.replace(/\D/g, ''), 10) || 0;
+  const numB = parseInt(rollB.replace(/\D/g, ''), 10) || 0;
+  return numA - numB;
+}
+
+
     if (isLab === "Yes" && labBatch) {
       const labBatchInfo = await sequelize.query(
-        `SELECT roll_from, roll_to, extra_rolls
-         FROM lab_batches
-         WHERE branch = :branch
-           AND section = :section
-           AND semester = :semester
-           AND subject_code = :subjectCode
-           AND batch = :labBatch
+        `SELECT roll_from, roll_to, extra_rolls 
+         FROM lab_batches 
+         WHERE branch = :branch 
+           AND section = :section 
+           AND batch = :labBatch 
+           AND academic_year = :academicYear
          LIMIT 1`,
         {
-          replacements: { branch, section, semester, subjectCode, labBatch },
+          replacements: { branch, section, labBatch, academicYear },
           type: QueryTypes.SELECT,
         }
       );
@@ -240,16 +259,15 @@ router.get("/students", async (req, res) => {
 
       const { roll_from, roll_to, extra_rolls } = labBatchInfo[0];
 
-      // Use numeric conversion to compare roll numbers correctly in the range query
-      const mainQuery = `
-        SELECT * FROM students
-        WHERE branch = ? AND section = ? AND batchYear = ?
-          AND CAST(rollNumber AS UNSIGNED) BETWEEN CAST(? AS UNSIGNED) AND CAST(? AS UNSIGNED)
-      `;
-      const mainStudents = await sequelize.query(mainQuery, {
-        replacements: [branch, section, academicYear, roll_from, roll_to],
-        type: QueryTypes.SELECT,
-      });
+      const mainStudents = await sequelize.query(
+        `SELECT * FROM students
+         WHERE branch = ? AND section = ? AND batchYear = ?
+           AND CAST(rollNumber AS UNSIGNED) BETWEEN CAST(? AS UNSIGNED) AND CAST(? AS UNSIGNED)`,
+        {
+          replacements: [branch, section, academicYear, roll_from, roll_to],
+          type: QueryTypes.SELECT,
+        }
+      );
 
       let extraStudents = [];
       if (extra_rolls && extra_rolls.trim() !== "") {
@@ -258,7 +276,7 @@ router.get("/students", async (req, res) => {
         const extraQuery = `
           SELECT * FROM students
           WHERE branch = ? AND section = ? AND batchYear = ?
-            AND CAST(rollNumber AS UNSIGNED) IN (${placeholders})
+            AND rollNumber IN (${placeholders})
         `;
         extraStudents = await sequelize.query(extraQuery, {
           replacements: [branch, section, academicYear, ...extraRollsArray],
@@ -266,41 +284,19 @@ router.get("/students", async (req, res) => {
         });
       }
 
-      // Combine students and sort with custom logic:
-      // - Purely numeric roll numbers come first, sorted by numeric value.
-      // - If one roll number is numeric and the other is alphanumeric, the numeric one comes first.
-      // - Otherwise, use lexicographical order.
-      function isNumeric(str) {
-        return /^\d+$/.test(str);
-      }
       const allStudents = [...mainStudents, ...extraStudents];
-      allStudents.sort((a, b) => {
-        const aIsNumeric = isNumeric(a.rollNumber);
-        const bIsNumeric = isNumeric(b.rollNumber);
-        if (aIsNumeric && bIsNumeric) {
-          return parseInt(a.rollNumber, 10) - parseInt(b.rollNumber, 10);
-        } else if (aIsNumeric && !bIsNumeric) {
-          return -1;
-        } else if (!aIsNumeric && bIsNumeric) {
-          return 1;
-        } else {
-          return a.rollNumber.localeCompare(b.rollNumber);
-        }
-      });
+      allStudents.sort(customSort);
       return res.json(allStudents);
     } else {
-      // For non-lab attendance, use SQL to sort:
-      const query = `
-        SELECT * FROM students
-        WHERE branch = ? AND section = ? AND batchYear = ?
-        ORDER BY 
-          CASE WHEN rollNumber REGEXP '^[0-9]+$' THEN 0 ELSE 1 END ASC,
-          CASE WHEN rollNumber REGEXP '^[0-9]+$' THEN CAST(rollNumber AS UNSIGNED) ELSE rollNumber END ASC
-      `;
-      const students = await sequelize.query(query, {
-        replacements: [branch, section, academicYear],
-        type: QueryTypes.SELECT,
-      });
+      const students = await sequelize.query(
+        `SELECT * FROM students
+         WHERE branch = ? AND section = ? AND batchYear = ?`,
+        {
+          replacements: [branch, section, academicYear],
+          type: QueryTypes.SELECT,
+        }
+      );
+      students.sort(customSort);
       return res.json(students);
     }
   } catch (error) {
@@ -308,8 +304,6 @@ router.get("/students", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
-
-
 // Get Attendance Percentage
 router.get("/attendance/percentage", async (req, res) => {
   const { branch, academicYear, semester, section, subject_code, from_date, to_date, entry } = req.query;
@@ -518,10 +512,7 @@ router.get("/attendance/percentage", async (req, res) => {
     return res.status(500).json({ error: "Internal server error" });
   }
 });
-
-// Save Attendance Endpoint (supports lab attendance processing)
-// Expected request body: branch, section, batchYear, semester, subject_code, attendance_date, attendanceData
-// Optionally: isLab ("Yes") and labBatch (e.g., "1" indicating the batch whose attendance was marked)
+// POST /attendance
 router.post("/attendance", async (req, res) => {
   try {
     const { branch, section, batchYear, semester, subject_code, attendance_date, attendanceData, isLab, labBatch } = req.body;
@@ -529,83 +520,91 @@ router.post("/attendance", async (req, res) => {
       console.error("Invalid request data:", req.body);
       return res.status(400).json({ error: "Missing required fields or invalid data format." });
     }
-    
+
     let recordsToInsert = [];
-    // Process the provided attendanceData (for the batch that was fetched)
-    attendanceData.forEach(recordData => {
-      if (recordData && recordData.rollNumber && recordData.record && recordData.period && recordData.day_order !== undefined) {
-        recordsToInsert.push([
-          recordData.rollNumber,   // rollNumber
-          batchYear,               // batchYear
-          semester,                // semester
-          section,                 // section
-          subject_code,            // subject_code
-          branch,                  // branch
-          attendance_date,         // attendance_date
-          recordData.period,       // period
-          recordData.day_order,    // day_order
-          recordData.record        // record ('P' or 'A')
-        ]);
-      }
-    });
-    
-    // If lab attendance is enabled, duplicate attendance for the other batch
+
     if (isLab === "Yes" && labBatch) {
-      // Determine the other batch: if teacher's selection is "1", then the other batch is "2", else vice versa.
-      const otherBatch = (labBatch === "1") ? "2" : "1";
-      // Look up the roll number range for the other batch from the lab_batches table,
-      // now with an additional column for extra roll numbers (if any)
       const labBatchInfo = await sequelize.query(
         `SELECT roll_from, roll_to, extra_rolls 
          FROM lab_batches 
          WHERE branch = :branch 
            AND section = :section 
-           AND semester = :semester 
-           AND subject_code = :subject_code 
-           AND batch = :otherBatch
+           AND batch = :labBatch 
+           AND academic_year = :academicYear
          LIMIT 1`,
         {
-          replacements: { branch, section, semester, subject_code, otherBatch },
+          replacements: { branch, section, labBatch, academicYear: batchYear },
           type: QueryTypes.SELECT,
         }
       );
-      if (labBatchInfo.length > 0) {
-        const { roll_from, roll_to, extra_rolls } = labBatchInfo[0];
-        // Fetch students for the other batch using numeric roll range.
-        // If extra_rolls is provided (e.g., as a comma-separated string), that logic could be added here.
-        const studentsForOtherBatch = await sequelize.query(
-          `SELECT rollNumber FROM students
-           WHERE branch = :branch 
-             AND section = :section 
-             AND batchYear = :batchYear 
-             AND CAST(rollNumber AS UNSIGNED) BETWEEN :roll_from AND :roll_to`,
-          {
-            replacements: { branch, section, batchYear, roll_from, roll_to },
-            type: QueryTypes.SELECT,
-          }
-        );
-        if (studentsForOtherBatch.length > 0) {
-          // For simplicity, we duplicate the attendance from the first record in attendanceData.
-          const { period, day_order, record } = attendanceData[0];
-          studentsForOtherBatch.forEach(student => {
-            recordsToInsert.push([
-              student.rollNumber,
-              batchYear,
-              semester,
-              section,
-              subject_code,
-              branch,
-              attendance_date,
-              period,
-              day_order,
-              record
-            ]);
-          });
-        }
+
+      if (!labBatchInfo.length) {
+        return res.status(404).json({ error: "Lab batch configuration not found." });
       }
+
+      const { roll_from, roll_to, extra_rolls } = labBatchInfo[0];
+
+      const studentsInBatch = await sequelize.query(
+        `SELECT rollNumber FROM students
+         WHERE branch = :branch 
+           AND section = :section 
+           AND batchYear = :batchYear 
+           AND CAST(rollNumber AS UNSIGNED) BETWEEN :roll_from AND :roll_to`,
+        {
+          replacements: { branch, section, batchYear, roll_from, roll_to },
+          type: QueryTypes.SELECT,
+        }
+      );
+
+      let extraStudents = [];
+      if (extra_rolls && extra_rolls.trim()) {
+        const extras = extra_rolls.split(',').map(r => r.trim());
+        const placeholders = extras.map(() => '?').join(',');
+        const extraQuery = `
+          SELECT rollNumber FROM students
+          WHERE branch = ? AND section = ? AND batchYear = ? AND rollNumber IN (${placeholders})
+        `;
+        extraStudents = await sequelize.query(extraQuery, {
+          replacements: [branch, section, batchYear, ...extras],
+          type: QueryTypes.SELECT,
+        });
+      }
+
+      const { period, day_order, record } = attendanceData[0];
+      [...studentsInBatch, ...extraStudents].forEach(student => {
+        recordsToInsert.push([
+          student.rollNumber,
+          batchYear,
+          semester,
+          section,
+          subject_code,
+          branch,
+          attendance_date,
+          period,
+          day_order,
+          record
+        ]);
+      });
+
+    } else {
+      attendanceData.forEach(recordData => {
+        if (recordData && recordData.rollNumber && recordData.record && recordData.period && recordData.day_order !== undefined) {
+          recordsToInsert.push([
+            recordData.rollNumber,
+            batchYear,
+            semester,
+            section,
+            subject_code,
+            branch,
+            attendance_date,
+            recordData.period,
+            recordData.day_order,
+            recordData.record
+          ]);
+        }
+      });
     }
-    
-    // Insert attendance records; skip duplicates
+
     let duplicateCount = 0;
     let insertedCount = 0;
     for (const rec of recordsToInsert) {
@@ -616,7 +615,7 @@ router.post("/attendance", async (req, res) => {
           type: QueryTypes.SELECT,
         }
       );
-      if (existingRecord && existingRecord.length > 0) {
+      if (existingRecord.length > 0) {
         duplicateCount++;
         continue;
       }
@@ -631,8 +630,7 @@ router.post("/attendance", async (req, res) => {
       );
       insertedCount++;
     }
-    
-    // Prepare a custom alert message
+
     if (insertedCount === 0) {
       return res.json({ message: "Attendance already recorded; no new entries were added." });
     } else if (duplicateCount > 0) {
@@ -640,7 +638,7 @@ router.post("/attendance", async (req, res) => {
     } else {
       return res.json({ message: "Attendance saved successfully!" });
     }
-    
+
   } catch (error) {
     console.error("Error saving attendance:", error);
     res.status(500).json({ error: "Internal server error" });
