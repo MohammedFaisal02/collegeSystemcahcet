@@ -260,9 +260,12 @@ function customSort(a, b) {
       const { roll_from, roll_to, extra_rolls } = labBatchInfo[0];
 
       const mainStudents = await sequelize.query(
-        `SELECT * FROM students
-         WHERE branch = ? AND section = ? AND batchYear = ?
-           AND CAST(rollNumber AS UNSIGNED) BETWEEN CAST(? AS UNSIGNED) AND CAST(? AS UNSIGNED)`,
+        `SELECT *
+           FROM students
+          WHERE branch     = ?
+            AND section    = ?
+            AND batchYear  = ?
+            AND rollNumber BETWEEN ? AND ?`,
         {
           replacements: [branch, section, academicYear, roll_from, roll_to],
           type: QueryTypes.SELECT,
@@ -304,6 +307,41 @@ function customSort(a, b) {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+router.get('/attendance/data', async (req, res) => {
+  const { branch, academicYear, semester, section, subject_code, from_date, to_date } = req.query;
+
+  if (!branch || !academicYear || !semester || !section || !subject_code || !from_date || !to_date) {
+    return res.status(400).json({ error: "Missing required parameters" });
+  }
+
+  try {
+    const results = await sequelize.query(
+      `SELECT a.rollNumber AS roll_number,
+              s.name AS student_name,
+              a.attendance_date,
+              a.record
+       FROM attendance a
+       JOIN students s ON a.rollNumber = s.rollNumber
+       WHERE a.branch = :branch
+         AND a.batchYear = :academicYear
+         AND a.semester = :semester
+         AND a.section = :section
+         AND a.subject_code = :subject_code
+         AND a.attendance_date BETWEEN :from_date AND :to_date
+       ORDER BY a.rollNumber, a.attendance_date`,
+      {
+        replacements: { branch, academicYear, semester, section, subject_code, from_date, to_date },
+        type: QueryTypes.SELECT
+      }
+    );
+
+    return res.json(results);
+  } catch (error) {
+    console.error('Error fetching raw attendance data:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get Attendance Percentage
 router.get("/attendance/percentage", async (req, res) => {
   const { branch, academicYear, semester, section, subject_code, from_date, to_date, entry } = req.query;

@@ -20,6 +20,21 @@ const FacultyDashboard = () => {
 
   // Attendance states (for marking attendance)
   const [attendanceStudents, setAttendanceStudents] = useState([]);
+  const [selectedPeriods, setSelectedPeriods] = useState([]);
+  const [periodDropdownOpen, setPeriodDropdownOpen] = useState(false);
+
+  const togglePeriod = (p) => {
+    setSelectedPeriods(prev =>
+      prev.includes(p)
+        ? prev.filter(x => x !== p)
+        : [...prev, p]
+    );
+  };
+
+  // Attendance Percentage tab
+  const [apShowPercentage, setApShowPercentage] = useState('Yes');  // 'Yes' or 'No'
+  const [apRawData, setApRawData] = useState([]);                  // will hold the raw P/A records
+  const [apDatesRange, setApDatesRange] = useState([]);            // list of dates from from→to
 
   // States for Attendance Percentage tab
   const [apBranch, setApBranch] = useState('');
@@ -67,6 +82,12 @@ const FacultyDashboard = () => {
   const [studentAttendance, setStudentAttendance] = useState([]);
   const [studentLoading, setStudentLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showSummaryDialog, setShowSummaryDialog] = useState(false);
+  const [attendanceSummary, setAttendanceSummary] = useState({
+    total: 0,
+    present: 0,
+    absent: 0
+  });
 
   const navigate = useNavigate();
 
@@ -259,45 +280,75 @@ const FacultyDashboard = () => {
 
   // Save attendance – if lab flag is Yes, duplicate the attendance data for both batches (or merge as appropriate)
   const handleSaveAttendance = async () => {
-    if (!selectedBranch || !selectedAcademicYear || !selectedSemester || !selectedSection || !selectedSubject || attendanceStudents.length === 0 || !selectedPeriod || !selectedDayOrder) {
-      alert('Please ensure all filters (including period and day order) are selected and students are fetched.');
+    // 1) Ensure all filters are present
+    if (
+      !selectedBranch ||
+      !selectedAcademicYear ||
+      !selectedSemester ||
+      !selectedSection ||
+      !selectedSubject ||
+      attendanceStudents.length === 0 ||
+      !selectedDayOrder ||
+      (isLab === "No" && !selectedPeriod) ||
+      (isLab === "Yes" && selectedPeriods.length === 0)
+    ) {
+      alert('Please ensure all filters (including period(s) and day order) are selected and students are fetched.');
       return;
     }
-    const attendanceData = attendanceStudents.map(student => ({
+
+    // 2) Build base entries per student (date, record, day_order)
+    const baseEntries = attendanceStudents.map(student => ({
       rollNumber: student.rollNumber,
       record: student.record,
       attendance_date: selectedDate,
-      period: selectedPeriod,
       day_order: selectedDayOrder
     }));
+
+    // 3) Expand for lab vs non‑lab
+    let attendanceData = [];
+    if (isLab === "Yes") {
+      // for each student × each selected period × each batch (1 & 2)
+      attendanceData = baseEntries.flatMap(base =>
+        selectedPeriods.flatMap(period =>
+          ['1', '2'].map(batch => ({
+            ...base,
+            period: period,
+            labBatch: batch
+          }))
+        )
+      );
+    } else {
+      // one entry per student for the single period
+      attendanceData = baseEntries.map(base => ({
+        ...base,
+        period: selectedPeriod
+      }));
+    }
+
+    // 4) POST to server
     try {
-      if (isLab === "Yes") {
-        // Duplicate attendance records for both lab batches
-        const combinedAttendanceData = [
-          ...attendanceData.map(rec => ({ ...rec, labBatch: "1" })),
-          ...attendanceData.map(rec => ({ ...rec, labBatch: "2" }))
-        ];
-        await axios.post(`${process.env.REACT_APP_API_URL}/api/faculty/attendance`, {
-          branch: selectedBranch,
-          section: selectedSection,
-          semester: selectedSemester,
-          batchYear: selectedAcademicYear,
-          subject_code: selectedSubject,
-          attendance_date: selectedDate,
-          attendanceData: combinedAttendanceData,
-        });
-      } else {
-        await axios.post(`${process.env.REACT_APP_API_URL}/api/faculty/attendance`, {
-          branch: selectedBranch,
-          section: selectedSection,
-          semester: selectedSemester,
-          batchYear: selectedAcademicYear,
-          subject_code: selectedSubject,
-          attendance_date: selectedDate,
-          attendanceData,
-        });
-      }
-      alert('Attendance saved successfully!');
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/faculty/attendance`, {
+        branch: selectedBranch,
+        section: selectedSection,
+        semester: selectedSemester,
+        batchYear: selectedAcademicYear,
+        subject_code: selectedSubject,
+        attendanceData,
+        attendance_date: selectedDate,
+        day_order: selectedDayOrder,
+        isLab: isLab === "Yes" ? "Yes" : undefined  // ✅ explicitly include
+      });
+
+
+      // Calculate summary
+      const total = attendanceStudents.length;
+      const present = attendanceStudents.filter(s => s.record === 'P').length;
+      const absent = total - present;
+
+      // Show summary dialog
+      setAttendanceSummary({ total, present, absent });
+      setShowSummaryDialog(true);
+
       setSelectedTab('details');
     } catch (error) {
       console.error('Error saving attendance:', error.response?.data || error.message);
@@ -311,24 +362,55 @@ const FacultyDashboard = () => {
       alert('Please select all filters for attendance percentage.');
       return;
     }
+    setApLoading(true);
     try {
-      setApLoading(true);
-      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/faculty/attendance/percentage`, {
-        params: {
-          branch: apBranch,
-          academicYear: apAcademicYear,
-          semester: apSemester,
-          section: apSection,
-          subject_code: apSubject,
-          from_date: apFromDate,
-          to_date: apToDate,
-          entry: apEntry
+      if (apShowPercentage === 'Yes') {
+        // KEEP your existing GET /attendance/percentage call:
+        const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/faculty/attendance/percentage`, {
+  params: {
+    branch: apBranch,
+    academicYear: apAcademicYear,
+    semester: apSemester,
+    section: apSection,
+    subject_code: apSubject,
+    from_date: apFromDate,
+    to_date: apToDate,
+    entry: apEntry
+  }
+});
+        setApResults(response.data);
+      } else {
+        // NEW: fetch the raw attendance records in the date range
+        const response = await axios.get(
+          `${process.env.REACT_APP_API_URL}/api/faculty/attendance/data`,
+          {
+            params: {
+              branch: apBranch,
+              academicYear: apAcademicYear,
+              semester: apSemester,
+              section: apSection,
+              subject_code: apSubject,
+              from_date: apFromDate,
+              to_date: apToDate,
+              entry: apEntry
+            }
+          }
+        );
+        // response.data should be an array of { roll_number, student_name, attendance_date, record: 'P'|'A' }
+        setApRawData(response.data);
+
+        // also build the date range array for column headers
+        const from = new Date(apFromDate);
+        const to = new Date(apToDate);
+        const dates = [];
+        for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+          dates.push(d.toISOString().split('T')[0]);
         }
-      });
-      setApResults(response.data);
-    } catch (error) {
-      console.error('Error calculating attendance percentage:', error.message);
-      alert('Error calculating attendance percentage.');
+        setApDatesRange(dates);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error fetching attendance data.');
     } finally {
       setApLoading(false);
     }
@@ -395,167 +477,180 @@ const FacultyDashboard = () => {
 
   // PDF Generation Function
   const generatePdf = () => {
-    const collegeName = "C. ABDUL HAKEEM COLLEGE OF ENGINEERING & TECHNOLOGY";
-    const collegeLocation = "MELVISHARAM - 632509";
-    const department = "Department of Computer Science and Engineering";
-    const academicYearStr = "Academic Year 2024 - 2025";
-    const branch = apBranch;
-    const section = apSection;
-    const fromDate = apFromDate;
-    const toDate = apToDate;
-    const entry = apEntry;
-    const facultyName = facultyDetails ? facultyDetails.faculty_name : "";
+  const collegeName = "C. ABDUL HAKEEM COLLEGE OF ENGINEERING & TECHNOLOGY";
+  const collegeLocation = "MELVISHARAM - 632509";
+  // derive department based on branch
+  const deptMap = {
+    CSE: "Department of Computer Science and Engineering",
+    ECE: "Department of Electronics and Communication Engineering",
+    EEE: "Department of Electrical and Electronics Engineering",
+    MECH: "Department of Mechanical Engineering",
+    CIVIL: "Department of Civil Engineering",
+    IT: "Department of Information Technology",
+    AIDS: "Department of Artificial Intelligence and Data Science",
+    MCA: "Department of Computer Applications",
+    MBA: "Department of Business Administration"
+  };
+  const department = deptMap[apBranch] || "";
+  const academicYearStr = "Academic Year 2024 - 2025";
+  const branch = apBranch;
+  const section = apSection;
+  const fromDate = apFromDate;
+  const toDate = apToDate;
+  const entry = apEntry;
+  const showPerc = apShowPercentage; // Yes or No
+  const facultyName = facultyDetails ? facultyDetails.faculty_name : "";
 
-    const doc = new jsPDF('p', 'mm', 'a4');
-    const marginLeft = 10;
-    const marginRight = 200;
-    doc.addImage(logo, 'JPEG', marginLeft, 5, 20, 20);
-    doc.setFont("times", "bold");
-    doc.setFontSize(12);
-    doc.text(collegeName, 105, 12, { align: "center" });
-    doc.setFontSize(12);
-    doc.text(collegeLocation, 105, 18, { align: "center" });
-    doc.text(department, 105, 24, { align: "center" });
-    doc.text(academicYearStr, 105, 30, { align: "center" });
-    doc.setDrawColor(0, 0, 0);
-    doc.line(marginLeft, 33, marginRight, 33);
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const marginLeft = 10;
+  const marginRight = 200;
+  doc.addImage(logo, 'JPEG', marginLeft, 5, 20, 20);
+  doc.setFont("times", "bold");
+  doc.setFontSize(12);
+  doc.text(collegeName, 105, 12, { align: "center" });
+  doc.setFontSize(12);
+  doc.text(collegeLocation, 105, 18, { align: "center" });
+  doc.text(department, 105, 24, { align: "center" });
+  doc.text(academicYearStr, 105, 30, { align: "center" });
+  doc.setDrawColor(0, 0, 0);
+  doc.line(marginLeft, 33, marginRight, 33);
 
-    const titleY = 42;
-    doc.setFont("times", "bold");
-    doc.setFontSize(16);
-    doc.text("Attendance Percentage", 105, titleY, { align: "center" });
+  const titleY = 42;
+  doc.setFont("times", "bold");
+  doc.setFontSize(16);
+  doc.text(showPerc === 'Yes' ? "Attendance Percentage" : "Attendance Register", 105, titleY, { align: "center" });
 
-    const headerBlockStartY = 52;
-    let currentY = headerBlockStartY;
-    const leftX = 22;
-    doc.setFont("times", "bold");
-    doc.setFontSize(9);
-    doc.text("Subject Handler:", leftX, currentY);
-    let labelWidth = doc.getTextWidth("Subject Handler:");
-    doc.setFont("times", "normal");
-    doc.text(` ${facultyName}`, leftX + labelWidth + 2, currentY);
-    currentY += 6;
-    doc.setFont("times", "bold");
-    doc.text("Subject:", leftX, currentY);
-    labelWidth = doc.getTextWidth("Subject:");
-    doc.setFont("times", "normal");
-    let subjectDetail = "";
-    if (apSubject !== "ALL" && apSubjects.length > 0) {
-      const sub = apSubjects.find(s => s.subject_code === apSubject);
-      if (sub) {
-        subjectDetail = `${sub.subject_name} (${sub.subject_code})`;
-      }
-    } else {
-      subjectDetail = "All Subjects";
-    }
-    doc.text(` ${subjectDetail}`, leftX + labelWidth + 2, currentY);
-    currentY += 6;
-    doc.setFont("times", "bold");
-    doc.text("Entry:", leftX, currentY);
-    labelWidth = doc.getTextWidth("Entry:");
-    doc.setFont("times", "normal");
-    doc.text(` ${entry}`, leftX + labelWidth + 2, currentY);
+  const headerY = 52;
+  let y = headerY;
+  const leftX = 22;
+  const rightX = 120;
+  // Left details
+  doc.setFontSize(9);
+  doc.setFont("times", "bold");
+  doc.text("Subject Handler:", leftX, y);
+  let lw = doc.getTextWidth("Subject Handler:");
+  doc.setFont("times", "normal");
+  doc.text(` ${facultyName}`, leftX + lw + 2, y);
+  y += 6;
+  doc.setFont("times", "bold");
+  doc.text("Subject:", leftX, y);
+  lw = doc.getTextWidth("Subject:");
+  doc.setFont("times", "normal");
+  const subjectDetail = apSubject !== 'ALL'
+    ? `${apSubjects.find(s => s.subject_code === apSubject)?.subject_name || ''} (${apSubject})`
+    : "All Subjects";
+  doc.text(` ${subjectDetail}`, leftX + lw + 2, y);
+  y += 6;
+  doc.setFont("times", "bold");
+  doc.text("Entry:", leftX, y);
+  lw = doc.getTextWidth("Entry:");
+  doc.setFont("times", "normal");
+  doc.text(` ${entry}`, leftX + lw + 2, y);
 
-    const rightX = 120;
-    currentY = headerBlockStartY;
-    doc.setFont("times", "bold");
-    doc.text("Batch/Sem/Sec:", rightX, currentY);
-    labelWidth = doc.getTextWidth("Batch/Sem/Sec:");
-    doc.setFont("times", "normal");
-    doc.text(` ${apAcademicYear || ""} / ${apSemester || ""} / ${section}`, rightX + labelWidth + 2, currentY);
-    currentY += 6;
-    doc.setFont("times", "bold");
-    doc.text("From Date:", rightX, currentY);
-    labelWidth = doc.getTextWidth("From Date:");
-    doc.setFont("times", "normal");
-    doc.text(` ${fromDate}`, rightX + labelWidth + 2, currentY);
-    currentY += 6;
-    doc.setFont("times", "bold");
-    doc.text("To Date:", rightX, currentY);
-    labelWidth = doc.getTextWidth("To Date:");
-    doc.setFont("times", "normal");
-    doc.text(` ${toDate}`, rightX + labelWidth + 2, currentY);
+  // Right details
+  y = headerY;
+  doc.setFont("times", "bold");
+  doc.text("Batch/Sem/Sec:", rightX, y);
+  lw = doc.getTextWidth("Batch/Sem/Sec:");
+  doc.setFont("times", "normal");
+  doc.text(` ${apAcademicYear || ''} / ${apSemester || ''} / ${section}`, rightX + lw + 2, y);
+  y += 6;
+  doc.setFont("times", "bold");
+  doc.text("From Date:", rightX, y);
+  lw = doc.getTextWidth("From Date:");
+  doc.setFont("times", "normal");
+  doc.text(` ${fromDate}`, rightX + lw + 2, y);
+  y += 6;
+  doc.setFont("times", "bold");
+  doc.text("To Date:", rightX, y);
+  lw = doc.getTextWidth("To Date:");
+  doc.setFont("times", "normal");
+  doc.text(` ${toDate}`, rightX + lw + 2, y);
 
-    const tableStartY = currentY + 10;
-    doc.setFont("times", "bold");
-    doc.setFontSize(12);
-    doc.text("Attendance Percentage", 105, tableStartY, { align: "center" });
+  // Title above table
+  const tableY = y + 10;
+  doc.setFont("times", "bold");
+  doc.setFontSize(12);
 
-    let columns = [];
-    let data = [];
-    if (apSubject === "ALL") {
+  // Build table columns & data
+  let columns = [];
+  let data = [];
+
+  if (showPerc === 'Yes') {
+    if (apSubject === 'ALL') {
       columns = [
-        { header: "Roll No.", dataKey: "roll_number" },
-        { header: "Name", dataKey: "student_name" },
-        ...apSubjects.map(sub => ({
-          header: sub.subject_name,
-          dataKey: sub.subject_code
-        })),
-        { header: "Total Periods", dataKey: "total_periods" },
-        { header: "Total Presents", dataKey: "total_presents" },
-        { header: "Overall %", dataKey: "overall_percentage" }
+        { header: 'Roll No.', dataKey: 'roll_number' },
+        { header: 'Name', dataKey: 'student_name' },
+        ...apSubjects.map(sub => ({ header: sub.subject_name, dataKey: sub.subject_code })),
+        { header: 'Total Periods', dataKey: 'total_periods' },
+        { header: 'Total Presents', dataKey: 'total_presents' },
+        { header: 'Overall %', dataKey: 'overall_percentage' }
       ];
-
-      data = apResults.map(row => {
-        const subjectsData = row.subject_breakdown ? JSON.parse(row.subject_breakdown) : [];
-        const totalPresents = subjectsData.reduce((acc, subj) => acc + (Number(subj.present_count) || 0), 0);
-        const totalPeriods = subjectsData.reduce((acc, subj) => acc + (Number(subj.total_periods) || 0), 0);
-        const overallPerc = totalPeriods > 0 ? ((totalPresents / totalPeriods) * 100).toFixed(2) : "0.00";
-        let subjectInfo = {};
+      data = apResults.map(r => {
+        const subjectsData = r.subject_breakdown ? JSON.parse(r.subject_breakdown) : [];
+        const totalP = subjectsData.reduce((a,s) => a + Number(s.present_count||0),0);
+        const totalT = subjectsData.reduce((a,s) => a + Number(s.total_periods||0),0);
+        const row = { roll_number: r.roll_number, student_name: r.student_name };
         apSubjects.forEach(sub => {
-          const subData = subjectsData.find(s => s.subject_code.toUpperCase() === sub.subject_code.toUpperCase()) || {};
-          const pres = Number(subData.present_count || 0);
-          const periods = Number(subData.total_periods || 0);
-          subjectInfo[sub.subject_code] = `${pres} / ${periods} (${periods > 0 ? ((pres / periods) * 100).toFixed(2) : "0.00"}%)`;
+          const sd = subjectsData.find(s=>s.subject_code===sub.subject_code) || {};
+          const pres = Number(sd.present_count||0);
+          const tot = Number(sd.total_periods||0);
+          row[sub.subject_code] = `${pres}/${tot} (${ tot>0?((pres/tot)*100).toFixed(2):0 }%)`;
         });
-        return {
-          roll_number: row.roll_number,
-          student_name: row.student_name,
-          ...subjectInfo,
-          total_periods: totalPeriods,
-          total_presents: totalPresents,
-          overall_percentage: overallPerc + '%'
-        };
+        return { ...row, total_periods: totalT, total_presents: totalP, overall_percentage: `${ totalT>0?((totalP/totalT)*100).toFixed(2):0 }%` };
       });
     } else {
       columns = [
-        { header: "Roll No.", dataKey: "roll_number" },
-        { header: "Name", dataKey: "student_name" },
-        { header: "Total Periods", dataKey: "total_periods" },
-        { header: "Present", dataKey: "present" },
-        { header: "Absent", dataKey: "absent" },
-        { header: "Percentage", dataKey: "percentage" }
+        { header: 'Roll No.', dataKey: 'roll_number' },
+        { header: 'Name', dataKey: 'student_name' },
+        { header: 'Total Periods', dataKey: 'total_periods' },
+        { header: 'Present', dataKey: 'present' },
+        { header: 'Absent', dataKey: 'absent' },
+        { header: 'Percentage', dataKey: 'percentage' }
       ];
-
-      data = apResults.map(row => ({
-        roll_number: row.roll_number,
-        student_name: row.student_name,
-        total_periods: row.total_days,
-        present: row.present_count,
-        absent: row.total_days - row.present_count,
-        percentage: Number(row.percentage).toFixed(2) + '%'
+      data = apResults.map(r => ({
+        roll_number: r.roll_number,
+        student_name: r.student_name,
+        total_periods: r.total_days,
+        present: r.present_count,
+        absent: r.total_days - r.present_count,
+        percentage: `${ Number(r.percentage).toFixed(2) }%`
       }));
     }
-
-    autoTable(doc, {
-      startY: tableStartY + 8,
-      margin: { left: 10, right: 10 },
-      head: [columns.map(col => col.header)],
-      body: data.map(row => columns.map(col => row[col.dataKey])),
-      theme: 'grid',
-      styles: { font: "times", fontSize: 8, fontStyle: "normal", textColor: [0, 0, 0], lineWidth: 0.1, lineColor: [0, 0, 0] },
-      headStyles: { fontStyle: "bold", fillColor: [255, 255, 255], textColor: [0, 0, 0], halign: 'center', lineWidth: 0.1, lineColor: [0, 0, 0] },
-      bodyStyles: { halign: 'left', textColor: [0, 0, 0], lineWidth: 0.1, lineColor: [0, 0, 0] }
+  } else {
+    columns = [
+      { header: 'Roll No.', dataKey: 'roll_number' },
+      { header: 'Name', dataKey: 'student_name' },
+      ...apDatesRange.map(d => ({ header: d, dataKey: d }))
+    ];
+    const mapRows = {};
+    apRawData.forEach(({ roll_number, student_name, attendance_date, record }) => {
+      if (!mapRows[roll_number]) {
+        mapRows[roll_number] = { roll_number, student_name };
+        apDatesRange.forEach(d => { mapRows[roll_number][d] = 'A'; });
+      }
+      mapRows[roll_number][attendance_date] = record;
     });
+    data = Object.values(mapRows);
+  }
 
-    const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY : tableStartY + 40;
-    doc.setFont("times", "normal");
-    doc.setFontSize(10);
-    doc.text("Faculty In-Charge", 40, finalY + 40);
-    doc.text("HOD", 140, finalY + 40);
+  autoTable(doc, {
+    startY: tableY + 8,
+    head: [columns.map(c => c.header)],
+    body: data.map(row => columns.map(c => row[c.dataKey])),
+    theme: 'grid',
+    styles: { font: 'times', fontSize: 8, lineWidth: 0.1, lineColor: [0,0,0] },
+    headStyles: { fontStyle: 'bold', textColor: [0,0,0], fillColor: [255,255,255] }
+  });
 
-    doc.save(`AttendancePercentage_${fromDate}_to_${toDate}.pdf`);
-  };
+  const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY : tableY + 40;
+  doc.setFont("times", "normal");
+  doc.setFontSize(10);
+  doc.text("Faculty In-Charge", 40, finalY + 30);
+  doc.text("HOD", 140, finalY + 30);
+
+  doc.save(`Attendance_${fromDate}_to_${toDate}.pdf`);
+};
 
   // Render tab content based on selection
   const renderTabContent = () => {
@@ -747,15 +842,52 @@ const FacultyDashboard = () => {
                 <label>Date:</label>
                 <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="date-input" />
               </div>
-              <div className="filter-group">
-                <label>Period:</label>
-                <select value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)}>
-                  <option value="">-- Select Period --</option>
-                  {Array.from({ length: 8 }, (_, i) => i + 1).map(period => (
-                    <option key={period} value={period}>Period {period}</option>
-                  ))}
-                </select>
-              </div>
+              {isLab === "Yes" ? (
+                <div className="filter-group">
+                  <label>Periods:</label>
+                  <div className="period-dropdown">
+                    {/* Toggle open on label click */}
+                    <div
+                      className="dropdown-label"
+                      onClick={() => setPeriodDropdownOpen(o => !o)}
+                    >
+                      {selectedPeriods.length > 0
+                        ? selectedPeriods.map(p => `P${p}`).join(', ')
+                        : 'Select periods'}
+                    </div>
+
+                    {/* Only render menu when open */}
+                    {periodDropdownOpen && (
+                      <div className="dropdown-menu">
+                        {Array.from({ length: 8 }, (_, i) => i + 1).map(p => (
+                          <label key={p} style={{ display: 'block', margin: '4px 0' }}>
+                            <input
+                              type="checkbox"
+                              checked={selectedPeriods.includes(p)}
+                              onChange={() => togglePeriod(p)}
+                            />{' '}
+                            Period {p}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="filter-group">
+                  <label>Period:</label>
+                  <select
+                    value={selectedPeriod}
+                    onChange={e => setSelectedPeriod(e.target.value)}
+                  >
+                    <option value="">-- Select Period --</option>
+                    {Array.from({ length: 8 }, (_, i) => i + 1).map(p => (
+                      <option key={p} value={p}>Period {p}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="filter-group">
                 <label>Day Order:</label>
                 <select value={selectedDayOrder} onChange={(e) => setSelectedDayOrder(e.target.value)}>
@@ -813,192 +945,196 @@ const FacultyDashboard = () => {
             )}
           </div>
         );
-      case 'attendancePercentage':
-        // For Attendance Percentage, compute available semesters based on apBranch.
-        const availableAPSemesters = (apBranch === "MBA" || apBranch === "MCA")
-          ? ['1', '2', '3', '4']
-          : semesters;
-        return (
-          <div className="tab-content attendance-percentage-tab">
-            <h2>Attendance Percentage</h2>
-            <div className="filters-container">
-              <div className="filter-group">
-                <label>Branch:</label>
-                <select value={apBranch} onChange={(e) => setApBranch(e.target.value)}>
-                  <option value="">-- Select Branch --</option>
-                  {branches.map(b => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="filter-group">
-                <label>Academic Year:</label>
-                <select value={apAcademicYear} onChange={(e) => setApAcademicYear(e.target.value)}>
-                  <option value="">-- Select Year --</option>
-                  {academicYears.map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="filter-group">
-                <label>Semester:</label>
-                <select value={apSemester} onChange={(e) => setApSemester(e.target.value)}>
-                  <option value="">-- Select Semester --</option>
-                  {availableAPSemesters.map(s => (<option key={s} value={s}>{s}</option>))}
-                </select>
-              </div>
-              <div className="filter-group">
-                <label>Section:</label>
-                <select value={apSection} onChange={(e) => setApSection(e.target.value)}>
-                  <option value="">-- Select Section --</option>
-                  {sections.map(sec => (
-                    <option key={sec} value={sec}>{sec}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="filter-group">
-                <label>Subject:</label>
-                <select value={apSubject} onChange={(e) => setApSubject(e.target.value)}>
-                  <option value="">-- Select Subject --</option>
-                  {apSubjects.map(sub => (
-                    <option key={sub.subject_code} value={sub.subject_code}>
-                      {sub.subject_name} ({sub.subject_code})
-                    </option>
-                  ))}
-                  <option value="ALL">All Subjects</option>
-                </select>
-              </div>
-              <div className="filter-group">
-                <label>From Date:</label>
-                <input
-                  type="date"
-                  value={apFromDate}
-                  onChange={(e) => setApFromDate(e.target.value)}
-                  className="date-input"
-                />
-              </div>
-              <div className="filter-group">
-                <label>To Date:</label>
-                <input
-                  type="date"
-                  value={apToDate}
-                  onChange={(e) => setApToDate(e.target.value)}
-                  className="date-input"
-                />
-              </div>
-              <div className="filter-group">
-                <label>Entry:</label>
-                <select value={apEntry} onChange={(e) => setApEntry(e.target.value)}>
-                  <option value="Entry1">Entry 1</option>
-                  <option value="Entry2">Entry 2</option>
-                </select>
-              </div>
-            </div>
-            <button className="action-button" onClick={handleCalculateAttendancePercentage}>
-              Calculate Percentage
-            </button>
-            {apLoading && <p>Calculating attendance percentage...</p>}
-            {apResults.length > 0 && (
-              <>
-                <div className="table-container" style={{ overflowX: "auto" }}>
-                  {apSubject === "ALL" ? (
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Roll No.</th>
-                          <th>Name</th>
-                          {apSubjects.map((sub) => (
-                            <th key={sub.subject_code}>{sub.subject_name}</th>
-                          ))}
-                          <th>Total Periods</th>
-                          <th>Total Presents</th>
-                          <th>Overall %</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {apResults.map((row) => {
-                          const roll = row.roll_number || "N/A";
-                          const name = row.student_name || "N/A";
-                          const subjectsData = row.subject_breakdown ? JSON.parse(row.subject_breakdown) : [];
-                          const totalPresents = subjectsData.reduce(
-                            (acc, subj) => acc + (Number(subj.present_count) || 0),
-                            0
-                          );
-                          const totalPeriods = subjectsData.reduce(
-                            (acc, subj) => acc + (Number(subj.total_periods) || 0),
-                            0
-                          );
-                          const overallPerc = totalPeriods > 0 ? (totalPresents / totalPeriods) * 100 : 0;
-                          return (
-                            <tr key={roll}>
-                              <td>{roll}</td>
-                              <td>{name}</td>
-                              {apSubjects.map((sub) => {
-                                const subData =
-                                  subjectsData.find(
-                                    (s) =>
-                                      s.subject_code.toUpperCase() === sub.subject_code.toUpperCase()
-                                  ) || {};
-                                const pres = Number(subData.present_count || 0);
-                                const periods = Number(subData.total_periods || 0);
-                                const perc = periods > 0 ? (pres / periods) * 100 : 0;
-                                return (
-                                  <td key={`${roll}-${sub.subject_code}`}>
-                                    {`${pres} / ${periods} (${perc.toFixed(2)}%)`}
-                                  </td>
-                                );
-                              })}
-                              <td>{totalPeriods}</td>
-                              <td>{totalPresents}</td>
-                              <td>{overallPerc.toFixed(2)}%</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Roll No.</th>
-                          <th>Name</th>
-                          <th>Total Periods</th>
-                          <th>Present</th>
-                          <th>Absent</th>
-                          <th>Percentage</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {apResults.map((row) => {
-                          const roll = row.roll_number || "N/A";
-                          const name = row.student_name || "N/A";
-                          const totalPeriods = Number(row.total_days) || 0;
-                          const present = Number(row.present_count) || 0;
-                          const absent = totalPeriods - present;
-                          const percentage = totalPeriods > 0 ? parseFloat(row.percentage) : 0;
-                          return (
-                            <tr key={roll}>
-                              <td>{roll}</td>
-                              <td>{name}</td>
-                              <td>{totalPeriods}</td>
-                              <td>{present}</td>
-                              <td>{absent}</td>
-                              <td>{percentage.toFixed(2)}%</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )}
+        case 'attendancePercentage':
+          const availableAPSemesters = (apBranch === "MBA" || apBranch === "MCA")
+            ? ['1', '2', '3', '4']
+            : semesters;
+          return (
+            <div className="tab-content attendance-percentage-tab">
+              <h2>Attendance Details</h2>
+              <div className="filters-container">
+                <div className="filter-group">
+                  <label>Branch:</label>
+                  <select value={apBranch} onChange={e => setApBranch(e.target.value)}>
+                    <option value="">-- Select Branch --</option>
+                    {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
                 </div>
-                <br />
-                <button className="action-button" onClick={generatePdf}>
-                  Print PDF
-                </button>
-              </>
-            )}
-          </div>
-        );
+                <div className="filter-group">
+                  <label>Academic Year:</label>
+                  <select value={apAcademicYear} onChange={e => setApAcademicYear(e.target.value)}>
+                    <option value="">-- Select Year --</option>
+                    {academicYears.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
+                <div className="filter-group">
+                  <label>Semester:</label>
+                  <select value={apSemester} onChange={e => setApSemester(e.target.value)}>
+                    <option value="">-- Select Semester --</option>
+                    {availableAPSemesters.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div className="filter-group">
+                  <label>Section:</label>
+                  <select value={apSection} onChange={e => setApSection(e.target.value)}>
+                    <option value="">-- Select Section --</option>
+                    {sections.map(sec => <option key={sec} value={sec}>{sec}</option>)}
+                  </select>
+                </div>
+                <div className="filter-group">
+                  <label>Subject:</label>
+                  <select value={apSubject} onChange={e => setApSubject(e.target.value)}>
+                    <option value="">-- Select Subject --</option>
+                    {apSubjects.map(sub => (
+                      <option key={sub.subject_code} value={sub.subject_code}>
+                        {sub.subject_name} ({sub.subject_code})
+                      </option>
+                    ))}
+                    <option value="ALL">All Subjects</option>
+                  </select>
+                </div>
+                <div className="filter-group">
+                  <label>From Date:</label>
+                  <input type="date" value={apFromDate} onChange={e => setApFromDate(e.target.value)} className="date-input" />
+                </div>
+                <div className="filter-group">
+                  <label>To Date:</label>
+                  <input type="date" value={apToDate} onChange={e => setApToDate(e.target.value)} className="date-input" />
+                </div>
+                <div className="filter-group">
+                  <label>Entry:</label>
+                  <select value={apEntry} onChange={e => setApEntry(e.target.value)}>
+                    <option value="Entry1">Entry 1</option>
+                    <option value="Entry2">Entry 2</option>
+                  </select>
+                </div>
+                <div className="filter-group">
+                  <label>Show Percentage?</label>
+                  <select value={apShowPercentage} onChange={e => setApShowPercentage(e.target.value)}>
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+              </div>
+        
+              <button className="action-button" onClick={handleCalculateAttendancePercentage}>
+                {apShowPercentage === 'Yes' ? 'Calculate Percentage' : 'Show Attendance Data'}
+              </button>
+              {apLoading && <p>Loading...</p>}
+        
+              {apShowPercentage === 'Yes' && apResults.length > 0 && (
+                <>
+                  <div className="table-container" style={{ overflowX: 'auto' }}>
+                    {apSubject === 'ALL' ? (
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Roll No.</th>
+                            <th>Name</th>
+                            {apSubjects.map(sub => <th key={sub.subject_code}>{sub.subject_name}</th>)}
+                            <th>Total Periods</th>
+                            <th>Total Presents</th>
+                            <th>Overall %</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {apResults.map(row => {
+                            const subjectsData = row.subject_breakdown ? JSON.parse(row.subject_breakdown) : [];
+                            const totalP = subjectsData.reduce((acc, s) => acc + (Number(s.present_count) || 0), 0);
+                            const totalT = subjectsData.reduce((acc, s) => acc + (Number(s.total_periods) || 0), 0);
+                            return (
+                              <tr key={row.roll_number}>
+                                <td>{row.roll_number}</td>
+                                <td>{row.student_name}</td>
+                                {apSubjects.map(sub => {
+                                  const sd = subjectsData.find(s => s.subject_code === sub.subject_code) || {};
+                                  const pres = Number(sd.present_count || 0);
+                                  const tot = Number(sd.total_periods || 0);
+                                  const perc = tot > 0 ? ((pres / tot) * 100).toFixed(2) : '0.00';
+                                  return <td key={sub.subject_code}>{`${pres}/${tot} (${perc}%)`}</td>;
+                                })}
+                                <td>{totalT}</td>
+                                <td>{totalP}</td>
+                                <td>{totalT > 0 ? ((totalP/totalT)*100).toFixed(2) + '%' : '0.00%'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Roll No.</th>
+                            <th>Name</th>
+                            <th>Total Periods</th>
+                            <th>Present</th>
+                            <th>Absent</th>
+                            <th>Percentage</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {apResults.map(row => {
+                            const total = Number(row.total_days) || 0;
+                            const present = Number(row.present_count) || 0;
+                            const absent = total - present;
+                            const perc = total > 0 ? parseFloat(row.percentage).toFixed(2) + '%' : '0.00%';
+                            return (
+                              <tr key={row.roll_number}>
+                                <td>{row.roll_number}</td>
+                                <td>{row.student_name}</td>
+                                <td>{total}</td>
+                                <td>{present}</td>
+                                <td>{absent}</td>
+                                <td>{perc}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                  <button className="action-button" onClick={generatePdf}>
+                    Print PDF
+                  </button>
+                </>
+              )}
+        
+              {apShowPercentage === 'No' && apRawData.length > 0 && (
+                <div className="table-container" style={{ overflowX: 'auto' }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Roll No.</th>
+                        <th>Name</th>
+                        {apDatesRange.map(d => <th key={d}>{d}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.values(
+                        apRawData.reduce((acc, { roll_number, student_name, attendance_date, record }) => {
+                          const key = roll_number;
+                          if (!acc[key]) acc[key] = { roll_number, student_name, recs: {} };
+                          acc[key].recs[attendance_date] = record;
+                          return acc;
+                        }, {})
+                      ).map(({ roll_number, student_name, recs }) => (
+                        <tr key={roll_number}>
+                          <td>{roll_number}</td>
+                          <td>{student_name}</td>
+                          {apDatesRange.map(d => <td key={d}>{recs[d] || 'A'}</td>)}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <button className="action-button" onClick={generatePdf}>
+                    Print PDF
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        
       case 'students':
         const resultsBySemester = groupResultsBySemester(studentResults);
         const attendanceBySemester = groupAttendanceBySemester(studentAttendance);
@@ -1260,6 +1396,23 @@ const FacultyDashboard = () => {
       <div className="main-content">
         {renderTabContent()}
       </div>
+      {showSummaryDialog && (
+        <div className="summary-dialog-overlay">
+          <div className="summary-dialog-box">
+            <h3>Attendance Saved ✅</h3>
+            <p><strong>Total Students:</strong> {attendanceSummary.total}</p>
+            <p><strong>Present:</strong> {attendanceSummary.present}</p>
+            <p><strong>Absent:</strong> {attendanceSummary.absent}</p>
+            <button onClick={() => {
+              setShowSummaryDialog(false);
+              setSelectedTab('details');
+            }}>
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

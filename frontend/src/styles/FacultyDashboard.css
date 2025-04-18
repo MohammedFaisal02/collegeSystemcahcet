@@ -420,3 +420,99 @@
     display: flex;
   }
 }
+/* ========================================================================
+   7. Period‑Dropdown with Checkboxes (for Lab mode)
+   ======================================================================== */
+   .period-dropdown {
+    position: relative;
+    width: 250px;               /* match your other selects */
+    cursor: pointer;
+  }
+  
+  .period-dropdown .dropdown-label {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #fff;
+    font-size: 14px;
+  }
+  
+  .period-dropdown .dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    z-index: 1000;
+    padding: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    min-width: 100%;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  
+  .period-dropdown .dropdown-menu label {
+    display: block;
+    margin: 4px 0;
+    font-size: 14px;
+  }
+  .summary-dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+  
+  .summary-dialog-box {
+    background: #fff;
+    padding: 20px 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    text-align: center;
+    min-width: 280px;
+  }
+  
+  .summary-dialog-box h3 {
+    margin-bottom: 10px;
+  }
+  
+  .summary-dialog-box button {
+    margin-top: 15px;
+    padding: 8px 16px;
+    background-color: #2ecc71;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  
+  .summary-dialog-box button:hover {
+    background-color: #27ae60;
+  }
+  @media (max-width: 500px) {
+    .summary-dialog-box {
+      width: 90%;
+      padding: 15px 20px;
+    }
+  
+    .summary-dialog-box h3 {
+      font-size: 16px;
+    }
+  
+    .summary-dialog-box p {
+      font-size: 14px;
+    }
+  
+    .summary-dialog-box button {
+      padding: 6px 12px;
+      font-size: 14px;
+    }
+  }
+    
