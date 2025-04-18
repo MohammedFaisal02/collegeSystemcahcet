@@ -1363,7 +1363,7 @@ const FacultyDashboard = () => {
             <button onClick={() => setSelectedTab('details')}>Faculty Details</button>
             <button onClick={() => setSelectedTab('assessment')}>Assessments</button>
             <button onClick={() => setSelectedTab('attendance')}>Attendance</button>
-            <button onClick={() => setSelectedTab('attendancePercentage')}>Attendance Percentage</button>
+            <button onClick={() => setSelectedTab('attendancePercentage')}>Attendance Details</button>
             <button onClick={() => setSelectedTab('students')}>Students</button>
           </div>
         </div>
