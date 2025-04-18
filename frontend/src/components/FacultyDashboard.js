@@ -1385,7 +1385,7 @@ const FacultyDashboard = () => {
             Attendance
           </button>
           <button onClick={() => { setSelectedTab('attendancePercentage'); toggleNav(); }}>
-            Attendance Percentage
+            Attendance Detials
           </button>
           <button onClick={() => { setSelectedTab('students'); toggleNav(); }}>
             Students
