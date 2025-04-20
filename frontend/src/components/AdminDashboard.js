@@ -7,6 +7,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import '../styles/FacultyDashboard.css';
 import logo from '../data/logo.jpeg';
+
 const API_URL = process.env.REACT_APP_API_URL;
 
 const AdminDashboard = () => {
@@ -16,43 +17,39 @@ const AdminDashboard = () => {
   const [deptBranch, setDeptBranch] = useState('');
   const navigate = useNavigate();
 
-  const branches = ['CSE','AIDS','IT','ECE','EEE','MECH','CIVIL','MCA','MBA'];
-
-  // Subject‑wise prerequisites
+  const branches = ['CSE', 'AIDS', 'IT', 'ECE', 'EEE', 'MECH', 'CIVIL', 'MCA', 'MBA'];
   const [subjectsList, setSubjectsList] = useState([]);
+
+  // Load subjects for Subject‑wise filter
   useEffect(() => {
     axios.get(`${API_URL}/api/subjects/adminlist`)
       .then(res => setSubjectsList(res.data))
       .catch(err => console.error(err));
   }, []);
 
-  // ===== Data states for all views =====
+  // === State for each section ===
   // Day‑wise
   const [dwDate, setDwDate] = useState('');
   const [dwEntry, setDwEntry] = useState('FN');
   const [dwData, setDwData] = useState([]);
-
   // Month‑wise
   const [mwMonth, setMwMonth] = useState('');
   const [mwEntry, setMwEntry] = useState('FN');
   const [mwCols, setMwCols] = useState([]);
   const [mwRows, setMwRows] = useState([]);
-
   // Duration‑wise
   const [durFrom, setDurFrom] = useState('');
   const [durTo, setDurTo] = useState('');
   const [durCols, setDurCols] = useState([]);
   const [durRows, setDurRows] = useState([]);
-
   // Subject‑wise
   const [swBranch, setSwBranch] = useState('');
   const [swSubject, setSwSubject] = useState('');
   const [swData, setSwData] = useState([]);
-
-  // Below 75%
+  // Below 75%
   const [ltData, setLtData] = useState([]);
 
-  // Keep swSubject defaulted when swBranch changes
+  // Auto‑select first subject when branch changes
   useEffect(() => {
     if (swBranch) {
       const filtered = subjectsList.filter(s => s.branch === swBranch);
@@ -64,8 +61,7 @@ const AdminDashboard = () => {
 
   const toggleNav = () => setNavActive(v => !v);
 
-  // ===== Fetch functions (scoped to department branch if on that tab) =====
-
+  // === Fetch functions ===
   const fetchDayWise = async () => {
     try {
       const { data } = await axios.get(`${API_URL}/api/admin/attendance/day`, {
@@ -92,6 +88,7 @@ const AdminDashboard = () => {
       });
       const dates = Array.from(new Set(data.map(d => d.attendance_date))).sort();
       setMwCols(dates);
+
       const map = {};
       data.forEach(r => {
         if (!map[r.roll_number]) {
@@ -121,6 +118,7 @@ const AdminDashboard = () => {
       });
       const dates = Array.from(new Set(data.map(d => d.attendance_date))).sort();
       setDurCols(dates);
+
       const map = {};
       data.forEach(r => {
         if (!map[r.roll_number]) {
@@ -166,8 +164,7 @@ const AdminDashboard = () => {
     }
   };
 
-  // ===== PDF generator (unchanged) =====
-
+  // === PDF generator ===
   const generatePdf = (title, columns, rows) => {
     const doc = new jsPDF('p', 'mm', 'a4');
     doc.addImage(logo, 'JPEG', 10, 5, 20, 20);
@@ -194,28 +191,39 @@ const AdminDashboard = () => {
     doc.save(`${title.replace(/\s+/g, '_')}.pdf`);
   };
 
-  // ===== Section renderer with table-container wrapped by data presence =====
-
+  // === Section renderer ===
   const renderSection = () => {
     switch (selectedSection) {
       case 'day':
         return (
           <section className="admin-section">
             <div className="filters-container">
-              <input type="date" value={dwDate} onChange={e => setDwDate(e.target.value)} />
-              <select value={dwEntry} onChange={e => setDwEntry(e.target.value)}>
-                <option>FN</option><option>AN</option>
-              </select>
+              <div className="filter-group">
+                <label>Date:</label>
+                <input type="date" value={dwDate} onChange={e => setDwDate(e.target.value)} />
+              </div>
+              <div className="filter-group">
+                <label>Entry:</label>
+                <select value={dwEntry} onChange={e => setDwEntry(e.target.value)}>
+                  <option>FN</option>
+                  <option>AN</option>
+                </select>
+              </div>
               <button className="action-button" onClick={fetchDayWise}>Fetch</button>
             </div>
             {dwData.length > 0 && (
               <div className="table-container">
                 <table>
                   <thead>
-                    <tr><th>Roll No.</th><th>Name</th><th>Branch</th><th>Record</th></tr>
+                    <tr>
+                      <th>Roll No.</th>
+                      <th>Name</th>
+                      <th>Branch</th>
+                      <th>Record</th>
+                    </tr>
                   </thead>
                   <tbody>
-                    {dwData.map((r,i) => (
+                    {dwData.map((r, i) => (
                       <tr key={i}>
                         <td>{r.roll_number}</td>
                         <td>{r.student_name}</td>
@@ -229,10 +237,9 @@ const AdminDashboard = () => {
                   className="action-button"
                   onClick={() => generatePdf(
                     'Day-wise',
-                    ['roll_number','student_name','branch','record'],
+                    ['roll_number', 'student_name', 'branch', 'record'],
                     dwData
-                  )}
-                >
+                  )}>
                   Print PDF
                 </button>
               </div>
@@ -244,10 +251,17 @@ const AdminDashboard = () => {
         return (
           <section className="admin-section">
             <div className="filters-container">
-              <input type="month" value={mwMonth} onChange={e => setMwMonth(e.target.value)} />
-              <select value={mwEntry} onChange={e => setMwEntry(e.target.value)}>
-                <option>FN</option><option>AN</option>
-              </select>
+              <div className="filter-group">
+                <label>Month:</label>
+                <input type="month" value={mwMonth} onChange={e => setMwMonth(e.target.value)} />
+              </div>
+              <div className="filter-group">
+                <label>Entry:</label>
+                <select value={mwEntry} onChange={e => setMwEntry(e.target.value)}>
+                  <option>FN</option>
+                  <option>AN</option>
+                </select>
+              </div>
               <button className="action-button" onClick={fetchMonthWise}>Fetch</button>
             </div>
             {mwRows.length > 0 && (
@@ -255,12 +269,14 @@ const AdminDashboard = () => {
                 <table>
                   <thead>
                     <tr>
-                      <th>Roll No.</th><th>Name</th><th>Branch</th>
+                      <th>Roll No.</th>
+                      <th>Name</th>
+                      <th>Branch</th>
                       {mwCols.map(d => <th key={d}>{d}</th>)}
                     </tr>
                   </thead>
                   <tbody>
-                    {mwRows.map((r,i) => (
+                    {mwRows.map((r, i) => (
                       <tr key={i}>
                         <td>{r.rollNumber}</td>
                         <td>{r.name}</td>
@@ -274,10 +290,9 @@ const AdminDashboard = () => {
                   className="action-button"
                   onClick={() => generatePdf(
                     'Month-wise',
-                    ['rollNumber','name','branch', ...mwCols],
+                    ['rollNumber', 'name', 'branch', ...mwCols],
                     mwRows
-                  )}
-                >
+                  )}>
                   Print PDF
                 </button>
               </div>
@@ -289,8 +304,14 @@ const AdminDashboard = () => {
         return (
           <section className="admin-section">
             <div className="filters-container">
-              <input type="date" value={durFrom} onChange={e => setDurFrom(e.target.value)} />
-              <input type="date" value={durTo} onChange={e => setDurTo(e.target.value)} />
+              <div className="filter-group">
+                <label>From:</label>
+                <input type="date" value={durFrom} onChange={e => setDurFrom(e.target.value)} />
+              </div>
+              <div className="filter-group">
+                <label>To:</label>
+                <input type="date" value={durTo} onChange={e => setDurTo(e.target.value)} />
+              </div>
               <button className="action-button" onClick={fetchDurationWise}>Fetch</button>
             </div>
             {durRows.length > 0 && (
@@ -298,12 +319,14 @@ const AdminDashboard = () => {
                 <table>
                   <thead>
                     <tr>
-                      <th>Roll No.</th><th>Name</th><th>Branch</th>
+                      <th>Roll No.</th>
+                      <th>Name</th>
+                      <th>Branch</th>
                       {durCols.map(d => <th key={d}>{d}</th>)}
                     </tr>
                   </thead>
                   <tbody>
-                    {durRows.map((r,i) => (
+                    {durRows.map((r, i) => (
                       <tr key={i}>
                         <td>{r.rollNumber}</td>
                         <td>{r.name}</td>
@@ -317,10 +340,9 @@ const AdminDashboard = () => {
                   className="action-button"
                   onClick={() => generatePdf(
                     'Duration-wise',
-                    ['rollNumber','name','branch', ...durCols],
+                    ['rollNumber', 'name', 'branch', ...durCols],
                     durRows
-                  )}
-                >
+                  )}>
                   Print PDF
                 </button>
               </div>
@@ -341,11 +363,7 @@ const AdminDashboard = () => {
               </div>
               <div className="filter-group">
                 <label>Subject:</label>
-                <select
-                  value={swSubject}
-                  onChange={e => setSwSubject(e.target.value)}
-                  disabled={!swBranch}
-                >
+                <select value={swSubject} onChange={e => setSwSubject(e.target.value)} disabled={!swBranch}>
                   <option value="">-- Select Subject --</option>
                   {subjectsList
                     .filter(s => s.branch === swBranch)
@@ -357,11 +375,7 @@ const AdminDashboard = () => {
                   }
                 </select>
               </div>
-              <button
-                className="action-button"
-                onClick={fetchSubjectWise}
-                disabled={!swBranch || !swSubject}
-              >
+              <button className="action-button" onClick={fetchSubjectWise} disabled={!swBranch || !swSubject}>
                 Fetch
               </button>
             </div>
@@ -370,11 +384,15 @@ const AdminDashboard = () => {
                 <table>
                   <thead>
                     <tr>
-                      <th>Roll No.</th><th>Name</th><th>Branch</th><th>Batch</th><th>Record</th>
+                      <th>Roll No.</th>
+                      <th>Name</th>
+                      <th>Branch</th>
+                      <th>Batch</th>
+                      <th>Record</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {swData.map((r,i) => (
+                    {swData.map((r, i) => (
                       <tr key={i}>
                         <td>{r.roll_number}</td>
                         <td>{r.student_name}</td>
@@ -389,10 +407,9 @@ const AdminDashboard = () => {
                   className="action-button"
                   onClick={() => generatePdf(
                     'Subject-wise',
-                    ['roll_number','student_name','branch','batch','record'],
+                    ['roll_number', 'student_name', 'branch', 'batch', 'record'],
                     swData
-                  )}
-                >
+                  )}>
                   Print PDF
                 </button>
               </div>
@@ -404,16 +421,22 @@ const AdminDashboard = () => {
         return (
           <section className="admin-section">
             <div className="filters-container">
+              {/* No input headings needed here */}
               <button className="action-button" onClick={fetchThreshold}>Fetch</button>
             </div>
             {ltData.length > 0 && (
               <div className="table-container">
                 <table>
                   <thead>
-                    <tr><th>Roll No.</th><th>Name</th><th>Branch</th><th>Percentage</th></tr>
+                    <tr>
+                      <th>Roll No.</th>
+                      <th>Name</th>
+                      <th>Branch</th>
+                      <th>Percentage</th>
+                    </tr>
                   </thead>
                   <tbody>
-                    {ltData.map((r,i) => (
+                    {ltData.map((r, i) => (
                       <tr key={i}>
                         <td>{r.roll_number}</td>
                         <td>{r.student_name}</td>
@@ -427,10 +450,9 @@ const AdminDashboard = () => {
                   className="action-button"
                   onClick={() => generatePdf(
                     'Below 75%',
-                    ['roll_number','student_name','branch','percentage'],
+                    ['roll_number', 'student_name', 'branch', 'percentage'],
                     ltData
-                  )}
-                >
+                  )}>
                   Print PDF
                 </button>
               </div>
@@ -443,27 +465,28 @@ const AdminDashboard = () => {
     }
   };
 
-  // ===== Tab renderers =====
-
+  // === Tab renderers ===
   const renderStudentTab = () => (
     <div className="tab-content student-tab">
       <h2>Student Attendance</h2>
-      <div className="filters-container sub-nav-links">
-        {['day','month','duration','subject','threshold'].map(key => (
+      <div className="filters-container sub-nav-links" style={{
+        overflowX: 'auto',
+        flexWrap: 'nowrap',
+        whiteSpace: 'nowrap'
+      }}>
+        {['day', 'month', 'duration', 'subject', 'threshold'].map(key => (
           <button
             key={key}
             className={`action-button ${selectedSection === key ? 'active' : ''}`}
             onClick={() => setSelectedSection(key)}
           >
-            {key === 'day'
-              ? 'Day-wise'
-              : key === 'month'
-              ? 'Month-wise'
-              : key === 'duration'
-              ? 'Duration-wise'
-              : key === 'subject'
-              ? 'Subject-wise'
-              : 'Below 75%'}
+            {{
+              day: 'Day-wise',
+              month: 'Month-wise',
+              duration: 'Duration-wise',
+              subject: 'Subject-wise',
+              threshold: 'Below 75%'
+            }[key]}
           </button>
         ))}
       </div>
@@ -475,38 +498,37 @@ const AdminDashboard = () => {
     <div className="tab-content department-tab">
       <h2>Department Attendance</h2>
       <div className="filters-container">
-        <label>Branch:</label>
-        <select value={deptBranch} onChange={e => setDeptBranch(e.target.value)}>
-          <option value="">-- Select Branch --</option>
-          {branches.map(b => <option key={b} value={b}>{b}</option>)}
-        </select>
+        <div className="filter-group">
+          <label>Branch:</label>
+          <select value={deptBranch} onChange={e => setDeptBranch(e.target.value)}>
+            <option value="">-- Select Branch --</option>
+            {branches.map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
+        </div>
       </div>
-      <div className="filters-container sub-nav-links">
-        {['day','month','duration','threshold'].map(key => (
+      <div className="filters-container sub-nav-links" style={{
+        overflowX: 'auto',
+        flexWrap: 'nowrap',
+        whiteSpace: 'nowrap'
+      }}>
+        {['day', 'month', 'duration', 'threshold'].map(key => (
           <button
             key={key}
             className={`action-button ${selectedSection === key ? 'active' : ''}`}
             onClick={() => setSelectedSection(key)}
           >
-            {key === 'day'
-              ? 'Day-wise'
-              : key === 'month'
-              ? 'Month-wise'
-              : key === 'duration'
-              ? 'Duration-wise'
-              : 'Below 75%'}
+            {{
+              day: 'Day-wise',
+              month: 'Month-wise',
+              duration: 'Duration-wise',
+              threshold: 'Below 75%'
+            }[key]}
           </button>
         ))}
       </div>
       {renderSection()}
     </div>
   );
-
-  const renderTabContent = () => {
-    if (selectedTab === 'student')   return renderStudentTab();
-    if (selectedTab === 'department') return renderDepartmentTab();
-    return null;
-  };
 
   return (
     <div className="faculty-dashboard">
@@ -519,19 +541,21 @@ const AdminDashboard = () => {
         <div className="taskbar-center">
           <div className="brand">Admin Dashboard</div>
           <div className="nav-links">
-            <button onClick={() => { setSelectedTab('student'); setSelectedSection('day'); }}>
-              Student
-            </button>
-            <button onClick={() => { setSelectedTab('department'); setSelectedSection('day'); }}>
-              Department
-            </button>
+            <button onClick={() => { setSelectedTab('student'); setSelectedSection('day'); }}>Student</button>
+            <button onClick={() => { setSelectedTab('department'); setSelectedSection('day'); }}>Department</button>
           </div>
         </div>
         <div className="taskbar-right">
           <button className="homebutton" onClick={() => navigate('/')}>Logout</button>
         </div>
+        <div className={`nav-links mobile ${navActive ? 'active' : ''}`}>
+          <button onClick={() => { setSelectedTab('student'); setSelectedSection('day'); toggleNav(); }}>Student</button>
+          <button onClick={() => { setSelectedTab('department'); setSelectedSection('day'); toggleNav(); }}>Department</button>
+        </div>
       </div>
-      <div className="main-content">{renderTabContent()}</div>
+      <div className="main-content">
+        {selectedTab === 'student' ? renderStudentTab() : renderDepartmentTab()}
+      </div>
     </div>
   );
 };
