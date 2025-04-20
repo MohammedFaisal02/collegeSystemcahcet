@@ -32,6 +32,11 @@ const CombinedLogin = () => {
           </div>
         </div>
       </div>
+      <div style={{ textAlign: 'center', marginTop: '20px' }}>
+      <Link to="/admin-login">
+        <button className="link-button">Admin Login</button>
+      </Link>
+    </div>
     </div>
   );
 };

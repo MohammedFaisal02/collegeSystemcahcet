@@ -9,11 +9,15 @@ import FacultyDashboard from './components/FacultyDashboard';
 import StudentDashboard from './components/StudentDashboard';
 import DoubtBot from "./components/DoubtBot";
 import CombinedLogin from './components/CombinedLogin';
+import AdminLogin from './components/AdminLogin';
+import AdminDashboard from './components/AdminDashboard';
 function App() {
     return (
         <Router>
             <Routes>
                 <Route path="/" element={<CombinedLogin />} />
+                <Route path="/admin-login" element={<AdminLogin />} />
+                <Route path="/admin-dashboard/*" element={<AdminDashboard />} />
                 <Route path="/form-container" element={<RegisterPage />} />
                 <Route path="/student-login" element={<StudentLogin />} />
                 <Route path="/faculty-login" element={<FacultyLogin />} />

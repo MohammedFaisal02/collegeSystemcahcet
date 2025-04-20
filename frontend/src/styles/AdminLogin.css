@@ -1,0 +1,67 @@
+/* src/styles/AdminLogin.css */
+
+/* Scope all styles under .admin-login-wrapper to avoid bleeding */
+.admin-login-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background-color: #f4f4f4;
+}
+
+.admin-login-wrapper .login-form {
+  background-color: #ffffff;
+  padding: 30px 40px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 400px;
+}
+
+.admin-login-wrapper .login-form h2 {
+  margin-bottom: 20px;
+  text-align: center;
+  color: #333333;
+}
+
+.admin-login-wrapper .login-form p {
+  margin-bottom: 15px;
+  text-align: center;
+  color: #e74c3c;
+}
+
+.admin-login-wrapper .filter-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 15px;
+}
+
+.admin-login-wrapper .filter-group label {
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: #555555;
+}
+
+.admin-login-wrapper .filter-group input {
+  padding: 8px 10px;
+  font-size: 14px;
+  border: 1px solid #cccccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.admin-login-wrapper .action-button {
+  background-color: #2ecc71;
+  color: #ffffff;
+  border: none;
+  padding: 12px;
+  font-size: 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  width: 100%;
+}
+
+.admin-login-wrapper .action-button:hover {
+  background-color: #27ae60;
+}

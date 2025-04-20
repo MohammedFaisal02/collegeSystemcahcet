@@ -38,7 +38,7 @@ const corsOptions = {
 
 
 app.use(express.json());
-app.use(cors(corsOptions));
+app.use(cors());
 app.use(limiter);
 app.options('*', cors(corsOptions));
 
@@ -47,12 +47,12 @@ const studentRoutes = require('./routes/studentRoutes');
 const facultyRoutes = require('./routes/facultyRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
 const botRoutes = require('./routes/botRoutes');
-
+const adminRoutes = require('./routes/adminRoutes');
 app.use('/api/students', studentRoutes);
 app.use('/api/faculty', facultyRoutes);
 app.use('/api/subjects', subjectRoutes);
 app.use('/api/ask', botRoutes);
-
+app.use('/api/admin', adminRoutes);
 // Simple health-check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: "active", ai: "ready" });

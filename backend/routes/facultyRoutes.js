@@ -307,34 +307,37 @@ function customSort(a, b) {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+// GET /attendance/data
 router.get('/attendance/data', async (req, res) => {
-  const { branch, academicYear, semester, section, subject_code, from_date, to_date } = req.query;
-
-  if (!branch || !academicYear || !semester || !section || !subject_code || !from_date || !to_date) {
+  const { branch, academicYear, semester, section, subject_code, from_date, to_date, entry } = req.query;
+  if (!branch || !academicYear || !semester || !section || !subject_code || !from_date || !to_date || !entry) {
     return res.status(400).json({ error: "Missing required parameters" });
   }
+  // Map your entry select to a numeric period
+  const period = entry === "Entry1" ? 1 : entry === "Entry2" ? 2 : null;
 
   try {
     const results = await sequelize.query(
-      `SELECT a.rollNumber AS roll_number,
-              s.name AS student_name,
-              a.attendance_date,
-              a.record
+      `SELECT 
+         a.rollNumber   AS roll_number,
+         s.name         AS student_name,
+         a.attendance_date,
+         a.record,
+         a.period
        FROM attendance a
        JOIN students s ON a.rollNumber = s.rollNumber
-       WHERE a.branch = :branch
-         AND a.batchYear = :academicYear
-         AND a.semester = :semester
-         AND a.section = :section
-         AND a.subject_code = :subject_code
+       WHERE a.branch        = :branch
+         AND a.batchYear     = :academicYear
+         AND a.semester      = :semester
+         AND a.section       = :section
+         AND a.subject_code  = :subject_code
          AND a.attendance_date BETWEEN :from_date AND :to_date
-       ORDER BY a.rollNumber, a.attendance_date`,
+       ORDER BY a.attendance_date, a.rollNumber`,
       {
         replacements: { branch, academicYear, semester, section, subject_code, from_date, to_date },
         type: QueryTypes.SELECT
       }
     );
-
     return res.json(results);
   } catch (error) {
     console.error('Error fetching raw attendance data:', error);

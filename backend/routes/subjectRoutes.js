@@ -3,7 +3,18 @@ const router = express.Router();
 const sequelize = require("../config/db"); // Sequelize instance
 const { QueryTypes } = require("sequelize");
 
-
+router.get('/adminlist', async (req, res) => {
+  try {
+    const subjects = await sequelize.query(
+      'SELECT * FROM subjects ORDER BY batchYear, semester',
+      { type: QueryTypes.SELECT }
+    );
+    res.json(subjects);
+  } catch (error) {
+    console.error("Error fetching subjects:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 router.get('/list', async (req, res) => {
   try {
