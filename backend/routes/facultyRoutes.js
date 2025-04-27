@@ -94,7 +94,7 @@ router.post("/register", async (req, res) => {
       return res.status(409).json({ message: "Faculty already exists" });
     }
     const password = faculty_name.replace(/\s+/g, '').substring(0, 4).toUpperCase() +
-                     faculty_code.toString().slice(-4);
+      faculty_code.toString().slice(-4);
     await sequelize.query(
       `INSERT INTO faculties 
        (faculty_code, faculty_name, designation, branch, password)
@@ -167,8 +167,8 @@ router.post("/marks", async (req, res) => {
       if (existingRecord.length > 0) {
         const updateField =
           examType === "CAT1" ? "cat1_marks" :
-          examType === "CAT2" ? "cat2_marks" :
-          examType === "MODEL" ? "model_marks" : null;
+            examType === "CAT2" ? "cat2_marks" :
+              examType === "MODEL" ? "model_marks" : null;
         if (!updateField) {
           return res.status(400).json({ error: "Invalid exam type." });
         }
@@ -218,24 +218,24 @@ router.get("/students", async (req, res) => {
       return res.status(400).json({ error: "Branch, section, and academicYear are required." });
     }
 
-   // 1) If a roll has "R", it goes into the "R group" (pushed to the end).
-// 2) Otherwise, compare by the numeric portion of the roll only.
-function customSort(a, b) {
-  const rollA = String(a.rollNumber).trim();
-  const rollB = String(b.rollNumber).trim();
+    // 1) If a roll has "R", it goes into the "R group" (pushed to the end).
+    // 2) Otherwise, compare by the numeric portion of the roll only.
+    function customSort(a, b) {
+      const rollA = String(a.rollNumber).trim();
+      const rollB = String(b.rollNumber).trim();
 
-  const aHasR = /r/i.test(rollA);
-  const bHasR = /r/i.test(rollB);
+      const aHasR = /r/i.test(rollA);
+      const bHasR = /r/i.test(rollB);
 
-  // If exactly one roll has R, push that one to the end:
-  if (aHasR && !bHasR) return 1;   // A goes after B
-  if (!aHasR && bHasR) return -1; // A goes before B
+      // If exactly one roll has R, push that one to the end:
+      if (aHasR && !bHasR) return 1;   // A goes after B
+      if (!aHasR && bHasR) return -1; // A goes before B
 
-  // Both have R or both do not have R → compare by numeric portion
-  const numA = parseInt(rollA.replace(/\D/g, ''), 10) || 0;
-  const numB = parseInt(rollB.replace(/\D/g, ''), 10) || 0;
-  return numA - numB;
-}
+      // Both have R or both do not have R → compare by numeric portion
+      const numA = parseInt(rollA.replace(/\D/g, ''), 10) || 0;
+      const numB = parseInt(rollB.replace(/\D/g, ''), 10) || 0;
+      return numA - numB;
+    }
 
 
     if (isLab === "Yes" && labBatch) {
@@ -261,11 +261,12 @@ function customSort(a, b) {
 
       const mainStudents = await sequelize.query(
         `SELECT *
-           FROM students
-          WHERE branch     = ?
-            AND section    = ?
-            AND batchYear  = ?
-            AND rollNumber BETWEEN ? AND ?`,
+                  FROM students
+                 WHERE branch     = ?
+                   AND section    = ?
+                   AND batchYear  = ?
+                   AND CAST(rollNumber AS UNSIGNED)
+                       BETWEEN CAST(? AS UNSIGNED) AND CAST(? AS UNSIGNED)`,
         {
           replacements: [branch, section, academicYear, roll_from, roll_to],
           type: QueryTypes.SELECT,
