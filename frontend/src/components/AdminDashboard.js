@@ -44,7 +44,7 @@ const AdminDashboard = () => {
     }
 
     // UG Courses
-    const yearMap = { 0: 'I', 1: 'II', 2: 'III', 3: 'IV' };
+    const yearMap = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV' };
     return yearMap[diff] || '-';
   };
   // near your other helpers:
