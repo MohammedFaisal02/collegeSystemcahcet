@@ -20,6 +20,39 @@ const AdminDashboard = () => {
   const branches = ['CSE', 'AIDS', 'IT', 'ECE', 'EEE', 'MECH', 'CIVIL', 'MCA', 'MBA'];
   const [subjectsList, setSubjectsList] = useState([]);
 
+  const getYearFromBatch = (batch, branch) => {
+    const batchYear = parseInt(batch?.toString(), 10);
+    const currentYear = new Date().getFullYear();
+
+    if (!batchYear || isNaN(batchYear) || !branch) return '-';
+
+    const branchCode = branch.toUpperCase();
+
+    // Calculate admission year based on graduation year
+    let admissionYear;
+    if (['MBA', 'MCA'].includes(branchCode)) {
+      admissionYear = batchYear - 2; // PG: 2-year program
+    } else {
+      admissionYear = batchYear - 4; // UG: 4-year program
+    }
+
+    const diff = currentYear - admissionYear;
+
+    // PG Courses (MBA/MCA)
+    if (['MBA', 'MCA'].includes(branchCode)) {
+      return diff === 1 ? 'I' : diff === 2 ? 'II' : '-';
+    }
+
+    // UG Courses
+    const yearMap = { 0: 'I', 1: 'II', 2: 'III', 3: 'IV' };
+    return yearMap[diff] || '-';
+  };
+  // near your other helpers:
+  const withRoll = params =>
+    selectedTab === 'search' && searchRoll
+      ? { ...params, rollNumber: searchRoll }
+      : params;
+
   // Load subjects for Subject‑wise filter
   useEffect(() => {
     axios.get(`${API_URL}/api/subjects/adminlist`)
@@ -28,6 +61,10 @@ const AdminDashboard = () => {
   }, []);
 
   // === State for each section ===
+
+  const [searchRoll, setSearchRoll] = useState('');
+
+
   // Day‑wise
   const [dwDate, setDwDate] = useState('');
   const [dwEntry, setDwEntry] = useState('FN');
@@ -42,10 +79,13 @@ const AdminDashboard = () => {
   const [durTo, setDurTo] = useState('');
   const [durCols, setDurCols] = useState([]);
   const [durRows, setDurRows] = useState([]);
+
   // Subject‑wise
   const [swBranch, setSwBranch] = useState('');
   const [swSubject, setSwSubject] = useState('');
   const [swData, setSwData] = useState([]);
+  const [swDate, setSwDate] = useState('');
+
   // Below 75%
   const [ltData, setLtData] = useState([]);
 
@@ -64,14 +104,21 @@ const AdminDashboard = () => {
   // === Fetch functions ===
   const fetchDayWise = async () => {
     try {
-      const { data } = await axios.get(`${API_URL}/api/admin/attendance/day`, {
-        params: {
-          date: dwDate,
-          entry: dwEntry,
-          branch: selectedTab === 'department' ? deptBranch : undefined
-        }
+      // build base params, then inject rollNumber if in Search tab
+      const params = withRoll({
+        date: dwDate,
+        entry: dwEntry,
+        branch: selectedTab === 'department' ? deptBranch : undefined
       });
+
+      const { data } = await axios.get(
+        `${API_URL}/api/admin/attendance/day`,
+        { params }
+      );
       setDwData(data);
+      if (data.length === 0) {
+        alert('No Day-wise attendance found for the given filters.');
+      }
     } catch {
       setDwData([]);
     }
@@ -79,13 +126,19 @@ const AdminDashboard = () => {
 
   const fetchMonthWise = async () => {
     try {
-      const { data } = await axios.get(`${API_URL}/api/admin/attendance/month`, {
-        params: {
-          month: mwMonth,
-          entry: mwEntry,
-          branch: selectedTab === 'department' ? deptBranch : undefined
-        }
+      const params = withRoll({
+        month: mwMonth,
+        entry: mwEntry,
+        branch: selectedTab === 'department' ? deptBranch : undefined
       });
+      const { data } = await axios.get(
+        `${API_URL}/api/admin/attendance/month`,
+        { params }
+      );
+      if (data.length === 0) {
+        alert('No Month-wise attendance data found.');
+      }
+
       const dates = Array.from(new Set(data.map(d => d.attendance_date))).sort();
       setMwCols(dates);
 
@@ -96,8 +149,10 @@ const AdminDashboard = () => {
             rollNumber: r.roll_number,
             name: r.student_name,
             branch: r.branch,
+            batchYear: r.batchYear || r.batch, // ✅ ADD THIS LINE
             ...Object.fromEntries(dates.map(d => [d, 'A']))
           };
+
         }
         map[r.roll_number][r.attendance_date] = r.record;
       });
@@ -109,13 +164,18 @@ const AdminDashboard = () => {
 
   const fetchDurationWise = async () => {
     try {
-      const { data } = await axios.get(`${API_URL}/api/admin/attendance/duration`, {
-        params: {
-          from: durFrom,
-          to: durTo,
-          branch: selectedTab === 'department' ? deptBranch : undefined
-        }
+      const params = withRoll({
+        from: durFrom,
+        to: durTo,
+        branch: selectedTab === 'department' ? deptBranch : undefined
       });
+      const { data } = await axios.get(
+        `${API_URL}/api/admin/attendance/duration`,
+        { params }
+      );
+      if (data.length === 0) {
+        alert('No Duration-wise attendance data found.');
+      }
       const dates = Array.from(new Set(data.map(d => d.attendance_date))).sort();
       setDurCols(dates);
 
@@ -126,8 +186,10 @@ const AdminDashboard = () => {
             rollNumber: r.roll_number,
             name: r.student_name,
             branch: r.branch,
+            batchYear: r.batchYear || r.batch, // ✅ Add this line
             ...Object.fromEntries(dates.map(d => [d, 'A']))
           };
+
         }
         map[r.roll_number][r.attendance_date] = r.record;
       });
@@ -139,25 +201,40 @@ const AdminDashboard = () => {
 
   const fetchSubjectWise = async () => {
     try {
-      const { data } = await axios.get(`${API_URL}/api/admin/attendance/subject`, {
-        params: {
-          branch: swBranch,
-          subject: swSubject
-        }
-      });
+      const params = {
+        branch: swBranch,
+        subject: swSubject,
+        date: swDate,
+        ...(selectedTab === 'search' && searchRoll ? { rollNumber: searchRoll } : {})
+      };
+
+      const { data } = await axios.get(`${API_URL}/api/admin/attendance/subject`, { params });
       setSwData(data);
-    } catch {
+
+      if (data.length === 0) {
+        alert('No Subject-wise attendance found for the selected date.');
+      }
+    } catch (err) {
+      console.error('Subject-wise fetch error:', err);
       setSwData([]);
+      alert('Failed to fetch Subject-wise data.');
     }
   };
 
+
+
   const fetchThreshold = async () => {
     try {
-      const { data } = await axios.get(`${API_URL}/api/admin/attendance/threshold`, {
-        params: {
-          branch: selectedTab === 'department' ? deptBranch : undefined
-        }
+      const params = withRoll({
+        branch: selectedTab === 'department' ? deptBranch : undefined
       });
+      const { data } = await axios.get(
+        `${API_URL}/api/admin/attendance/threshold`,
+        { params }
+      );
+      if (data.length === 0) {
+        alert('No Threshold attendance data found.');
+      }
       setLtData(data);
     } catch {
       setLtData([]);
@@ -219,6 +296,7 @@ const AdminDashboard = () => {
                       <th>Roll No.</th>
                       <th>Name</th>
                       <th>Branch</th>
+                      <th>Year</th>
                       <th>Record</th>
                     </tr>
                   </thead>
@@ -228,6 +306,7 @@ const AdminDashboard = () => {
                         <td>{r.roll_number}</td>
                         <td>{r.student_name}</td>
                         <td>{r.branch}</td>
+                        <td>{getYearFromBatch(r.batchYear || r.batch, r.branch)}</td>
                         <td>{r.record}</td>
                       </tr>
                     ))}
@@ -235,15 +314,25 @@ const AdminDashboard = () => {
                 </table>
                 <button
                   className="action-button"
-                  onClick={() => generatePdf(
-                    'Day-wise',
-                    ['roll_number', 'student_name', 'branch', 'record'],
-                    dwData
-                  )}>
+                  onClick={() => {
+                    // Add the "Year" column dynamically to the PDF data
+                    const pdfData = dwData.map(item => ({
+                      ...item,
+                      year: getYearFromBatch(item.batchYear || item.batch, item.branch)
+                    }));
+
+                    generatePdf(
+                      'Day-wise',
+                      ['roll_number', 'student_name', 'branch', 'year', 'record'], // Include "year" column
+                      pdfData // Use the modified data with the "year" field
+                    );
+                  }}
+                >
                   Print PDF
                 </button>
               </div>
             )}
+
           </section>
         );
 
@@ -272,6 +361,7 @@ const AdminDashboard = () => {
                       <th>Roll No.</th>
                       <th>Name</th>
                       <th>Branch</th>
+                      <th>Year</th>
                       {mwCols.map(d => <th key={d}>{d}</th>)}
                     </tr>
                   </thead>
@@ -281,6 +371,8 @@ const AdminDashboard = () => {
                         <td>{r.rollNumber}</td>
                         <td>{r.name}</td>
                         <td>{r.branch}</td>
+                        <td>{getYearFromBatch(r.batchYear || r.batch, r.branch)}</td>
+
                         {mwCols.map(d => <td key={d}>{r[d]}</td>)}
                       </tr>
                     ))}
@@ -288,11 +380,18 @@ const AdminDashboard = () => {
                 </table>
                 <button
                   className="action-button"
-                  onClick={() => generatePdf(
-                    'Month-wise',
-                    ['rollNumber', 'name', 'branch', ...mwCols],
-                    mwRows
-                  )}>
+                  onClick={() => {
+                    const pdfData = mwRows.map(row => ({
+                      ...row,
+                      year: getYearFromBatch(row.batchYear || row.batch, row.branch)
+                    }));
+                    generatePdf(
+                      'Month-wise',
+                      ['rollNumber', 'name', 'branch', 'year', ...mwCols], // Added 'year'
+                      pdfData
+                    );
+                  }}
+                >
                   Print PDF
                 </button>
               </div>
@@ -322,6 +421,7 @@ const AdminDashboard = () => {
                       <th>Roll No.</th>
                       <th>Name</th>
                       <th>Branch</th>
+                      <th>Year</th>
                       {durCols.map(d => <th key={d}>{d}</th>)}
                     </tr>
                   </thead>
@@ -331,6 +431,7 @@ const AdminDashboard = () => {
                         <td>{r.rollNumber}</td>
                         <td>{r.name}</td>
                         <td>{r.branch}</td>
+                        <td>{getYearFromBatch(r.batchYear || r.batch, r.branch)}</td>
                         {durCols.map(d => <td key={d}>{r[d]}</td>)}
                       </tr>
                     ))}
@@ -338,11 +439,18 @@ const AdminDashboard = () => {
                 </table>
                 <button
                   className="action-button"
-                  onClick={() => generatePdf(
-                    'Duration-wise',
-                    ['rollNumber', 'name', 'branch', ...durCols],
-                    durRows
-                  )}>
+                  onClick={() => {
+                    const pdfData = durRows.map(row => ({
+                      ...row,
+                      year: getYearFromBatch(row.batchYear || row.batch, row.branch)
+                    }));
+                    generatePdf(
+                      'Duration-wise',
+                      ['rollNumber', 'name', 'branch', 'year', ...durCols], // Added 'year'
+                      pdfData
+                    );
+                  }}
+                >
                   Print PDF
                 </button>
               </div>
@@ -361,24 +469,48 @@ const AdminDashboard = () => {
                   {branches.map(b => <option key={b} value={b}>{b}</option>)}
                 </select>
               </div>
+
               <div className="filter-group">
                 <label>Subject:</label>
-                <select value={swSubject} onChange={e => setSwSubject(e.target.value)} disabled={!swBranch}>
+                <select
+                  value={swSubject}
+                  onChange={e => setSwSubject(e.target.value)}
+                  disabled={!swBranch}
+                >
                   <option value="">-- Select Subject --</option>
                   {subjectsList
                     .filter(s => s.branch === swBranch)
-                    .map(s => (
-                      <option key={s.subject_code} value={s.subject_code}>
+                    .map((s, idx) => (
+                      <option key={`${s.subject_code}-${idx}`} value={s.subject_code}>
                         {s.subject_name}
                       </option>
-                    ))
-                  }
+                    ))}
                 </select>
               </div>
-              <button className="action-button" onClick={fetchSubjectWise} disabled={!swBranch || !swSubject}>
+
+              <div className="filter-group">
+                <label>Date:</label>
+                <input
+                  type="date"
+                  value={swDate}
+                  onChange={e => setSwDate(e.target.value)}
+                />
+              </div>
+
+              <button
+                className="action-button"
+                onClick={fetchSubjectWise}
+                disabled={!swBranch || !swSubject || !swDate}
+              >
                 Fetch
               </button>
             </div>
+
+            {swData.length === 0 && (
+              <div className="no-data-alert">
+                ⚠️ No subject-wise attendance found for today.
+              </div>
+            )}
             {swData.length > 0 && (
               <div className="table-container">
                 <table>
@@ -387,6 +519,7 @@ const AdminDashboard = () => {
                       <th>Roll No.</th>
                       <th>Name</th>
                       <th>Branch</th>
+                      <th>Year</th>
                       <th>Batch</th>
                       <th>Record</th>
                     </tr>
@@ -397,6 +530,8 @@ const AdminDashboard = () => {
                         <td>{r.roll_number}</td>
                         <td>{r.student_name}</td>
                         <td>{r.branch}</td>
+                        <td>{getYearFromBatch(r.batchYear || r.batch, r.branch)}</td>
+
                         <td>{r.batch}</td>
                         <td>{r.record}</td>
                       </tr>
@@ -405,11 +540,18 @@ const AdminDashboard = () => {
                 </table>
                 <button
                   className="action-button"
-                  onClick={() => generatePdf(
-                    'Subject-wise',
-                    ['roll_number', 'student_name', 'branch', 'batch', 'record'],
-                    swData
-                  )}>
+                  onClick={() => {
+                    const pdfData = swData.map(row => ({
+                      ...row,
+                      year: getYearFromBatch(row.batchYear || row.batch, row.branch)
+                    }));
+                    generatePdf(
+                      'Subject-wise',
+                      ['roll_number', 'student_name', 'branch', 'year', 'record'], // Added 'year'
+                      pdfData
+                    );
+                  }}
+                >
                   Print PDF
                 </button>
               </div>
@@ -432,6 +574,7 @@ const AdminDashboard = () => {
                       <th>Roll No.</th>
                       <th>Name</th>
                       <th>Branch</th>
+                      <th>Year</th>
                       <th>Percentage</th>
                     </tr>
                   </thead>
@@ -441,6 +584,8 @@ const AdminDashboard = () => {
                         <td>{r.roll_number}</td>
                         <td>{r.student_name}</td>
                         <td>{r.branch}</td>
+                        <td>{getYearFromBatch(r.batchYear || r.batch, r.branch)}</td>
+
                         <td>{r.percentage}</td>
                       </tr>
                     ))}
@@ -448,11 +593,18 @@ const AdminDashboard = () => {
                 </table>
                 <button
                   className="action-button"
-                  onClick={() => generatePdf(
-                    'Below 75%',
-                    ['roll_number', 'student_name', 'branch', 'percentage'],
-                    ltData
-                  )}>
+                  onClick={() => {
+                    const pdfData = ltData.map(row => ({
+                      ...row,
+                      year: getYearFromBatch(row.batchYear || row.batch, row.branch)
+                    }));
+                    generatePdf(
+                      'Below 75%',
+                      ['roll_number', 'student_name', 'branch', 'year', 'percentage'], // Added 'year'
+                      pdfData
+                    );
+                  }}
+                >
                   Print PDF
                 </button>
               </div>
@@ -530,6 +682,49 @@ const AdminDashboard = () => {
     </div>
   );
 
+  const renderSearchTab = () => (
+    <div className="tab-content search-tab">
+      <h2>Search Attendance</h2>
+
+      {/* Roll No. input */}
+      <div className="filters-container">
+        <div className="filter-group">
+          <label>Roll No.:</label>
+          <input
+            type="text"
+            value={searchRoll}
+            onChange={e => setSearchRoll(e.target.value)}
+            placeholder="Enter Roll Number"
+          />
+        </div>
+      </div>
+
+      {/* Sub-nav for day/month/duration/subject/threshold */}
+      <div className="filters-container sub-nav-links" style={{ overflowX: 'auto', whiteSpace: 'nowrap' }}>
+        {['day', 'month', 'duration', 'subject', 'threshold'].map(key => (
+          <button
+            key={key}
+            className={`action-button ${selectedSection === key ? 'active' : ''}`}
+            onClick={() => setSelectedSection(key)}
+          >
+            {{
+              day: 'Day-wise',
+              month: 'Month-wise',
+              duration: 'Duration-wise',
+              subject: 'Subject-wise',
+              threshold: 'Below 75%'
+            }[key]}
+          </button>
+        ))}
+      </div>
+
+      {/* Reuse your existing renderSection() which will automatically
+          include the roll filter because selectedTab==='search' */}
+      {renderSection()}
+    </div>
+  );
+
+
   return (
     <div className="faculty-dashboard">
       <div className="taskbar">
@@ -543,6 +738,7 @@ const AdminDashboard = () => {
           <div className="nav-links">
             <button onClick={() => { setSelectedTab('student'); setSelectedSection('day'); }}>Student</button>
             <button onClick={() => { setSelectedTab('department'); setSelectedSection('day'); }}>Department</button>
+            <button onClick={() => { setSelectedTab('search'); setSelectedSection('day'); }}>Search</button>
           </div>
         </div>
         <div className="taskbar-right">
@@ -551,11 +747,16 @@ const AdminDashboard = () => {
         <div className={`nav-links mobile ${navActive ? 'active' : ''}`}>
           <button onClick={() => { setSelectedTab('student'); setSelectedSection('day'); toggleNav(); }}>Student</button>
           <button onClick={() => { setSelectedTab('department'); setSelectedSection('day'); toggleNav(); }}>Department</button>
+          <button onClick={() => { setSelectedTab('search'); setSelectedSection('day'); toggleNav(); }}>Search</button>
+
         </div>
       </div>
       <div className="main-content">
-        {selectedTab === 'student' ? renderStudentTab() : renderDepartmentTab()}
+        {selectedTab === 'student' && renderStudentTab()}
+        {selectedTab === 'department' && renderDepartmentTab()}
+        {selectedTab === 'search' && renderSearchTab()}
       </div>
+
     </div>
   );
 };

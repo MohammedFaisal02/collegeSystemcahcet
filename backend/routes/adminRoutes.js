@@ -1,10 +1,10 @@
-// routes/adminRoutes.js
 const express = require('express');
 const router = express.Router();
 const sequelize = require('../config/db');
 const { QueryTypes } = require('sequelize');
 
-// —— Helper: custom rollNumber sort within group ——
+// —— Helper sorting functions (unchanged) ——
+
 function customRollSort(a, b) {
   const rollA = String(a.rollNumber || a.roll_number).trim();
   const rollB = String(b.rollNumber || b.roll_number).trim();
@@ -17,7 +17,6 @@ function customRollSort(a, b) {
   return numA - numB;
 }
 
-// Composite sort: batchYear, branch, section, (optional date), then roll
 function compositeSort(dayField) {
   return (a, b) => {
     if (a.batchYear !== b.batchYear) return a.batchYear - b.batchYear;
@@ -30,10 +29,11 @@ function compositeSort(dayField) {
   };
 }
 
-// 1️⃣ Day‑wise
+// 1️⃣ Day-wise
 router.get('/attendance/day', async (req, res, next) => {
-  const { date, entry, branch } = req.query;
+  const { date, entry, branch, rollNumber } = req.query;
   const period = entry === 'AN' ? 5 : 1;
+
   try {
     const sql = `
       SELECT
@@ -41,20 +41,23 @@ router.get('/attendance/day', async (req, res, next) => {
         s.name        AS student_name,
         a.branch,
         a.section,
-        a.batchYear,
+        s.batchYear AS batchYear,
         a.record
       FROM attendance a
       JOIN students s ON a.rollNumber = s.rollNumber
       WHERE a.attendance_date = :date
         AND a.period = :period
-        ${branch ? 'AND a.branch = :branch' : ''}
+        ${branch ? 'AND a.branch     = :branch' : ''}
+        ${rollNumber ? 'AND a.rollNumber = :rollNumber' : ''}
     `;
+
     const rows = await sequelize.query(sql, {
-      replacements: { date, period, branch },
+      replacements: { date, period, branch, rollNumber },
       type: QueryTypes.SELECT
     });
+
+    // de-duplicate per roll and sort
     const sorted = rows.sort(compositeSort());
-    // Dedupe by roll_number
     const unique = [];
     const seen = new Set();
     for (const r of sorted) {
@@ -63,16 +66,18 @@ router.get('/attendance/day', async (req, res, next) => {
         seen.add(r.roll_number);
       }
     }
+
     res.json(unique);
   } catch (err) {
     next(err);
   }
 });
 
-// 2️⃣ Month‑wise
+// 2️⃣ Month-wise
 router.get('/attendance/month', async (req, res, next) => {
-  const { month, entry, branch } = req.query;
+  const { month, entry, branch, rollNumber } = req.query;
   const period = entry === 'AN' ? 5 : 1;
+
   try {
     const sql = `
       SELECT
@@ -80,19 +85,23 @@ router.get('/attendance/month', async (req, res, next) => {
         s.name            AS student_name,
         a.branch,
         a.section,
-        a.batchYear,
+        s.batchYear AS batchYear,
+
         a.attendance_date,
         a.record
       FROM attendance a
       JOIN students s ON a.rollNumber = s.rollNumber
       WHERE DATE_FORMAT(a.attendance_date, '%Y-%m') = :month
         AND a.period = :period
-        ${branch ? 'AND a.branch = :branch' : ''}
+        ${branch ? 'AND a.branch     = :branch' : ''}
+        ${rollNumber ? 'AND a.rollNumber = :rollNumber' : ''}
     `;
+
     const rows = await sequelize.query(sql, {
-      replacements: { month, period, branch },
+      replacements: { month, period, branch, rollNumber },
       type: QueryTypes.SELECT
     });
+
     const sorted = rows.sort(compositeSort('attendance_date'));
     res.json(sorted);
   } catch (err) {
@@ -100,9 +109,10 @@ router.get('/attendance/month', async (req, res, next) => {
   }
 });
 
-// 3️⃣ Duration‑wise
+// 3️⃣ Duration-wise
 router.get('/attendance/duration', async (req, res, next) => {
-  const { from, to, branch } = req.query;
+  const { from, to, branch, rollNumber } = req.query;
+
   try {
     const sql = `
       SELECT
@@ -110,18 +120,22 @@ router.get('/attendance/duration', async (req, res, next) => {
         s.name            AS student_name,
         a.branch,
         a.section,
-        a.batchYear,
+       s.batchYear AS batchYear,
+
         a.attendance_date,
         a.record
       FROM attendance a
       JOIN students s ON a.rollNumber = s.rollNumber
       WHERE a.attendance_date BETWEEN :from AND :to
-        ${branch ? 'AND a.branch = :branch' : ''}
+        ${branch ? 'AND a.branch     = :branch' : ''}
+        ${rollNumber ? 'AND a.rollNumber = :rollNumber' : ''}
     `;
+
     const rows = await sequelize.query(sql, {
-      replacements: { from, to, branch },
+      replacements: { from, to, branch, rollNumber },
       type: QueryTypes.SELECT
     });
+
     const sorted = rows.sort(compositeSort('attendance_date'));
     res.json(sorted);
   } catch (err) {
@@ -129,9 +143,9 @@ router.get('/attendance/duration', async (req, res, next) => {
   }
 });
 
-// 4️⃣ Subject‑wise
 router.get('/attendance/subject', async (req, res, next) => {
-  const { branch, subject, section } = req.query;
+  const { branch, subject, section, rollNumber, date } = req.query;
+
   try {
     const sql = `
       SELECT
@@ -139,20 +153,24 @@ router.get('/attendance/subject', async (req, res, next) => {
         s.name            AS student_name,
         a.branch,
         a.section,
-        a.batchYear       AS batch,
+        s.batchYear AS batchYear,
+
         a.record
       FROM attendance a
       JOIN students s ON a.rollNumber = s.rollNumber
-      WHERE a.branch = :branch
-        AND a.subject_code = :subject
-        AND a.section = :section
-        AND a.attendance_date = CURDATE()
-        AND a.period = 1
+      WHERE 1=1
+        ${branch ? 'AND a.branch       = :branch' : ''}
+        ${subject ? 'AND a.subject_code = :subject' : ''}
+        ${section ? 'AND a.section      = :section' : ''}
+        ${date ? 'AND a.attendance_date = :date' : ''}
+        ${rollNumber ? 'AND a.rollNumber   = :rollNumber' : ''}
     `;
+
     const rows = await sequelize.query(sql, {
-      replacements: { branch, subject, section },
+      replacements: { branch, subject, section, date, rollNumber },
       type: QueryTypes.SELECT
     });
+
     const sorted = rows.sort(compositeSort());
     res.json(sorted);
   } catch (err) {
@@ -160,9 +178,10 @@ router.get('/attendance/subject', async (req, res, next) => {
   }
 });
 
-// 5️⃣ Below 75% Threshold
+// 5️⃣ Below-75% Threshold
 router.get('/attendance/threshold', async (req, res, next) => {
-  const { branch } = req.query;
+  const { branch, rollNumber } = req.query;
+
   try {
     const sql = `
       SELECT
@@ -174,17 +193,21 @@ router.get('/attendance/threshold', async (req, res, next) => {
       FROM attendance_percentage
       WHERE percentage < 75
         AND subject_code = 'ALL'
-        ${branch ? 'AND branch = :branch' : ''}
+        ${branch ? 'AND branch     = :branch' : ''}
+        ${rollNumber ? 'AND roll_number = :rollNumber' : ''}
     `;
+
     const rows = await sequelize.query(sql, {
-      replacements: { branch },
+      replacements: { branch, rollNumber },
       type: QueryTypes.SELECT
     });
+
     const sorted = rows.sort((a, b) => {
       if (a.branch !== b.branch) return String(a.branch).localeCompare(b.branch);
       if (a.section !== b.section) return String(a.section).localeCompare(b.section);
       return customRollSort(a, b);
     });
+
     res.json(sorted);
   } catch (err) {
     next(err);
